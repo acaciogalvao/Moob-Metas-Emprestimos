@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# compiled output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+*.log
+
+# Replit & Cache
+.cache/
+.local/
+.replit
+.replitignore
+
+# API Keys and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+config.json

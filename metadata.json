@@ -1,0 +1,6 @@
+{
+  "name": "MoobFinance - Caixa & Metas",
+  "description": "Plataforma financeira unificada para motoristas parceiros: controle de caixa de corridas em alta densidade, faturamento Uber/99, e sistema offline-first de metas compartilhadas e empréstimos entre parceiros.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
