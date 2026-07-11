@@ -37,6 +37,7 @@ interface ShiftControlProps {
   refuelMetrics?: any;
   excludeSundays?: boolean;
   onToggleExcludeSundays?: () => void;
+  draftFuelLiters?: number;
 }
 
 export function ShiftControl({ 
@@ -53,6 +54,7 @@ export function ShiftControl({
   onToggleSpeedometer,
   onUpdateActiveShift,
   refuelMetrics,
+  draftFuelLiters = 0,
   excludeSundays: propsExcludeSundays,
   onToggleExcludeSundays
 }: ShiftControlProps) {
@@ -816,6 +818,12 @@ export function ShiftControl({
   
   const remainingKm = activeConsumption > 0 ? currentFuelLiters * activeConsumption : 0;
 
+  // Live preview: while the user is typing liters into the refuel field in QuickRegister (even before
+  // saving the transaction), reflect that amount on the dashboard gauge's needle/percentage/label only.
+  const gaugeFuelLiters = activeCapacity > 0
+    ? Math.max(0, Math.min(activeCapacity, currentFuelLiters + (draftFuelLiters || 0)))
+    : currentFuelLiters;
+
   const totalKmOdometerCalibrated = (lastCalibratedOdo !== undefined && activeShift && activeShift.initialOdometer !== undefined)
     ? (lastCalibratedOdo - activeShift.initialOdometer)
     : 0;
@@ -862,6 +870,14 @@ export function ShiftControl({
                 setTotalLitersInput(fuelTxLiters.toFixed(2).replace('.', ','));
               } else {
                 setTotalLitersInput('');
+              }
+
+              // Auto-fill final odometer with (odômetro inicial + km rodados) so the driver only
+              // needs to correct it if it differs from the real reading.
+              if (activeShift && activeShift.initialOdometer !== undefined) {
+                setFinalOdometerInput(formatOdometer(activeShift.initialOdometer + displayKmRun));
+              } else {
+                setFinalOdometerInput('');
               }
               
               playBeep();
@@ -1088,7 +1104,7 @@ export function ShiftControl({
             <>
               {/* Barra e Painel de Nível de Combustível Físico Interativo */}
               {(() => {
-                const fuelPercentage = activeCapacity > 0 ? Math.max(0, Math.min(100, (currentFuelLiters / activeCapacity) * 100)) : 0;
+                const fuelPercentage = activeCapacity > 0 ? Math.max(0, Math.min(100, (gaugeFuelLiters / activeCapacity) * 100)) : 0;
                 
                 const getTickCoords = (angleDeg: number, rStart: number, rEnd: number) => {
                   const angleRad = (angleDeg - 90) * Math.PI / 180;
@@ -1271,7 +1287,10 @@ export function ShiftControl({
                         <span>⛽</span> Marcador de Combustível ({fuelVehicleType === 'CARRO' ? 'Carro' : 'Moto'})
                       </span>
                       <span className="font-mono text-[12.5px] text-slate-300 font-black">
-                        {currentFuelLiters.toFixed(1).replace('.', ',')}L / {activeCapacity.toString().replace('.', ',')}L ({fuelPercentage.toFixed(0)}%)
+                        {gaugeFuelLiters.toFixed(1).replace('.', ',')}L / {activeCapacity.toString().replace('.', ',')}L ({fuelPercentage.toFixed(0)}%)
+                        {draftFuelLiters > 0 && (
+                          <span className="text-emerald-400 ml-1">+{draftFuelLiters.toFixed(1).replace('.', ',')}L</span>
+                        )}
                       </span>
                     </div>
                     
@@ -2724,7 +2743,9 @@ export function ShiftControl({
                   const ninetyNineFeePct = ninetyNinePassengerApp > 0 ? (ninetyNineFees / ninetyNinePassengerApp) * 100 : 0;
 
                   const totalPassengerApp = uberPassengerApp + ninetyNinePassengerApp;
-                  const totalExtraCharged = uberExtraCharged + ninetyNineExtraCharged;
+                  const particularRides = rides.filter(t => t.platform === 'PARTICULAR');
+                  const particularExtra = particularRides.reduce((s, t) => s + t.value, 0);
+                  const totalExtraCharged = uberExtraCharged + ninetyNineExtraCharged + particularExtra;
                   const totalFees = uberFees + ninetyNineFees;
                   const totalFeePct = totalPassengerApp > 0 ? (totalFees / totalPassengerApp) * 100 : 0;
                   const netResult = totalExtraCharged - totalFees;
@@ -2790,6 +2811,20 @@ export function ShiftControl({
                             <span className="text-slate-500">Total Pedido Por Fora (Extra):</span>
                             <span className="text-emerald-400 font-black">+R$ {formatDecimalBRL(totalExtraCharged)}</span>
                           </div>
+                          <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                            <span>↳ Uber Extra:</span>
+                            <span>+R$ {formatDecimalBRL(uberExtraCharged)}</span>
+                          </div>
+                          <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                            <span>↳ 99 App Extra:</span>
+                            <span>+R$ {formatDecimalBRL(ninetyNineExtraCharged)}</span>
+                          </div>
+                          {particularExtra > 0 && (
+                            <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                              <span>↳ Particular Extra:</span>
+                              <span>+R$ {formatDecimalBRL(particularExtra)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-[13px] font-mono leading-tight">
                             <span className="text-slate-500">Taxas Retidas pelas Plataformas:</span>
                             <span className="text-rose-400 font-bold">-R$ {formatDecimalBRL(totalFees)}</span>

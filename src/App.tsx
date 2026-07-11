@@ -1002,10 +1002,10 @@ export default function App() {
 
     const saldosPlataformas = uberBalance + ninetyNineBalance;
 
-    const totalValoresExtras = rides.reduce((s, t) => {
-      const pExtra = t.platform === 'PARTICULAR' ? t.value : 0;
-      return s + (t.extraChargedValue || 0) + pExtra;
-    }, 0);
+    const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
+    const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
+    const valoresExtrasParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + t.value, 0);
+    const totalValoresExtras = valoresExtrasUber + valoresExtras99 + valoresExtrasParticular;
 
     const expectedGeral = rawIn - rawOut;
 
@@ -1065,6 +1065,9 @@ export default function App() {
       valoresOfertadosUber,
       valoresOfertados99,
       totalValoresExtras,
+      valoresExtrasUber,
+      valoresExtras99,
+      valoresExtrasParticular,
       totalCancels,
       cancelsCount,
       totalTips,
@@ -1952,12 +1955,25 @@ export default function App() {
             <div className="mt-1 text-lg font-black font-mono text-amber-400 tracking-tight leading-normal">
               {formatBRL(financialTotals.totalValoresExtras)}
             </div>
-            <div className="text-[12px] text-slate-500 mt-2 font-sans leading-none flex flex-col gap-1 border-t border-slate-800/80 pt-2 shrink-0">
-              <div className="flex justify-between text-amber-500 font-bold font-mono">
-                <span>Adicional:</span>
+            <div className="text-[12px] text-slate-500 mt-2 font-mono leading-none flex flex-col gap-1.5 border-t border-slate-800/80 pt-2 shrink-0">
+              <div className="flex justify-between text-slate-400">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />Uber:</span>
+                <span className="font-bold text-white">R$ {formatDecimalBRL(financialTotals.valoresExtrasUber)}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />99 App:</span>
+                <span className="font-bold text-amber-400">R$ {formatDecimalBRL(financialTotals.valoresExtras99)}</span>
+              </div>
+              {financialTotals.valoresExtrasParticular > 0 && (
+                <div className="flex justify-between text-slate-400">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />Particular:</span>
+                  <span className="font-bold text-emerald-400">R$ {formatDecimalBRL(financialTotals.valoresExtrasParticular)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-amber-500 font-bold border-t border-slate-800/40 pt-1.5 mt-0.5">
+                <span className="font-sans">Adicional Total:</span>
                 <span>+{financialTotals.totalValoresOfertados > 0 ? ((financialTotals.totalValoresExtras / financialTotals.totalValoresOfertados) * 100).toFixed(0) : '0'}%</span>
               </div>
-              <span className="text-[11px] text-amber-400 font-medium font-sans mt-1">Ganho sobre o pago p/ app</span>
             </div>
           </div>
 
