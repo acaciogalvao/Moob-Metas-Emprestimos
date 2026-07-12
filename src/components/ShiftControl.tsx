@@ -423,15 +423,26 @@ export function ShiftControl({
   const uberIn = rides.filter(t => t.platform === 'UBER' && t.paymentMethod !== 'APP').reduce((s, t) => s + t.value, 0);
   const ninetyNineIn = rides.filter(t => t.platform === '99' && t.paymentMethod !== 'APP').reduce((s, t) => s + t.value, 0);
   
-  // Breakdown of income categories based on values entered in the calculator
+  // Breakdown of income categories based on values entered in the calculator.
+  // For APP rides (CORRIDA): the main typed value goes to Pix/Cash based on extraPaymentMethod.
+  // Tips and cancellations always go to the platform (app) balance.
   const cashIn = allInTransactions.reduce((sum, t) => {
     if (t.paymentMethod === 'DINHEIRO') {
       const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
       return sum + (t.value - fee);
     }
     if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'dinheiro')) {
-      const extra = t.extraChargedValue !== undefined 
-        ? t.extraChargedValue 
+      if (t.category === 'CORRIDA') {
+        // Main ride offer + extra both go to cash balance
+        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
+        const extra = t.extraChargedValue !== undefined
+          ? t.extraChargedValue
+          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
+        return sum + offer + extra;
+      }
+      // Non-CORRIDA APP entries (e.g. cancellations via override) — keep existing behaviour
+      const extra = t.extraChargedValue !== undefined
+        ? t.extraChargedValue
         : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
       return sum + extra;
     }
@@ -444,18 +455,30 @@ export function ShiftControl({
       return sum + (t.value - fee);
     }
     if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'pix')) {
-      const extra = t.extraChargedValue !== undefined 
-        ? t.extraChargedValue 
+      if (t.category === 'CORRIDA') {
+        // Main ride offer + extra both go to pix balance
+        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
+        const extra = t.extraChargedValue !== undefined
+          ? t.extraChargedValue
+          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
+        return sum + offer + extra;
+      }
+      const extra = t.extraChargedValue !== undefined
+        ? t.extraChargedValue
         : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
       return sum + extra;
     }
     return sum;
   }, 0);
 
+  // appIn: only non-CORRIDA APP entries + tips (CORRIDA offer now lives in cashIn/pixIn)
   const appIn = allInTransactions.filter(t => t.paymentMethod === 'APP').reduce((sum, t) => {
+    if (t.category === 'CORRIDA') {
+      return sum; // Offer goes to Pix/Cash; tips are summed separately below
+    }
     const extra = (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'pix' || t.extraPaymentMethod === 'dinheiro')
-      ? (t.extraChargedValue !== undefined 
-          ? t.extraChargedValue 
+      ? (t.extraChargedValue !== undefined
+          ? t.extraChargedValue
           : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue))
       : 0;
     return sum + (t.value - extra);
@@ -575,6 +598,7 @@ export function ShiftControl({
 
     const weeklyTotalGanhos = weeklyRides.reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
 
+    // For APP rides: main offer goes to Pix/Cash; only tips/cancellations go to app balance.
     const weeklyGanhosDinheiro = weeklyRides.reduce((s, t) => {
       let sum = 0;
       if (t.paymentMethod === 'DINHEIRO' || t.paymentMethod === 'PIX') {
@@ -585,21 +609,17 @@ export function ShiftControl({
         }
       }
       if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'pix' || t.extraPaymentMethod === 'dinheiro')) {
-        sum += (t.extraChargedValue !== undefined ? t.extraChargedValue : 0);
+        // Main offer + extra both go to Pix/Cash for APP rides
+        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
+        sum += offer + (t.extraChargedValue !== undefined ? t.extraChargedValue : 0);
       }
       return s + sum;
     }, 0);
 
     const weeklyGanhosApp = weeklyRides.reduce((s, t) => {
       if (t.paymentMethod === 'APP') {
-        if (t.keypadValue === undefined || t.keypadValue <= 0) {
-          return s + (t.appOfferValue !== undefined ? t.appOfferValue : t.value);
-        } else {
-          const extra = (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'pix' || t.extraPaymentMethod === 'dinheiro')
-            ? (t.extraChargedValue !== undefined ? t.extraChargedValue : 0)
-            : 0;
-          return s + (t.value - extra);
-        }
+        // APP ride main value now goes to Pix/Cash; only tips count toward app balance
+        return s + (t.tipValue !== undefined && t.tipValue > 0 ? t.tipValue : 0);
       }
       return s;
     }, 0);

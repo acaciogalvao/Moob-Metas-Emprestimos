@@ -203,10 +203,9 @@ export function getPlatformBalanceDelta(tx: {
     const fee = passenger - offer;
 
     if (tx.paymentMethod === 'APP') {
-      // Paid directly via App (passenger pays app, app holds the driver's earnings)
-      // Driver earnings (net offer) is added to the wallet balance.
-      // This will abater (pay off) any negative debt, or accumulate in positive balance.
-      delta = offer;
+      // Paid via App: main ride value goes to Pix/Cash balance (tracked separately).
+      // Only tips and cancellations accumulate in the platform wallet balance.
+      delta = 0;
     } else {
       // Paid directly to driver in cash/pix/card (driver gets the passenger's money directly)
       // Driver owes the platform fee to the app, so the app fee is deducted from the wallet balance.

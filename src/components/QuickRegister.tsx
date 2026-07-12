@@ -2564,9 +2564,9 @@ export function QuickRegister({
                 {paymentMethod === 'APP' && txType === 'IN' && (
                   <div className="mt-2.5 p-2 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>
-                      <span className="text-[14px] font-bold text-amber-500 block uppercase">💰 Recebimento por Fora</span>
+                      <span className="text-[14px] font-bold text-amber-500 block uppercase">💰 Como recebeu o valor?</span>
                       <p className="text-[12.5px] text-slate-400 leading-tight mt-0.5">
-                        Caso digite valor extra na calculadora, selecione como recebeu:
+                        O valor digitado na calculadora vai para o saldo de Pix ou Dinheiro:
                       </p>
                     </div>
                     <div className="flex gap-1.5 shrink-0 self-stretch sm:sm:flex-initial">
