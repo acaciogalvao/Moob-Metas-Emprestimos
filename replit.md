@@ -10,13 +10,16 @@ npm run dev
 Starts the Express server (with Vite middleware in dev mode) on port 5000.
 
 ## Required secrets
-| Secret | Purpose |
-|--------|---------|
-| `GEMINI_API_KEY` | Gemini AI features |
-| `MERCADOPAGO_ACCESS_TOKEN` | Payment processing via Mercado Pago |
-| `MONGODB_URI` | Main database connection |
+| Secret | Purpose | Status |
+|--------|---------|--------|
+| `GEMINI_API_KEY` | Gemini AI features | Not set — AI insights features will fail until provided |
+| `MERCADOPAGO_ACCESS_TOKEN` | Payment processing via Mercado Pago | Not set — payment routes will fail until provided |
+| `MONGODB_URI` | Main database connection | Not set — app currently falls back to a hardcoded MongoDB Atlas URI baked into `src/server/config/database.ts`. Set this secret to point at your own database. |
 
 `SESSION_SECRET` is already configured.
+
+## Setup status (2026-07-12)
+Dependencies installed and the `Start application` workflow (`npm run dev` on port 5000) is running and verified via screenshot — the app boots and connects to the fallback MongoDB successfully. Gemini and Mercado Pago secrets were not provided, so those features are not yet functional.
 
 ## Stack
 - **Frontend**: React 19, Vite 6, Tailwind CSS 4, Recharts, Framer Motion
