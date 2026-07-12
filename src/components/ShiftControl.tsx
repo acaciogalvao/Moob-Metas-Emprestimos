@@ -12,6 +12,7 @@ import {
 import { Shift, Transaction } from '../types';
 import { playBeep, playCashRegister } from '../utils/audio';
 import { parseBRLInput, maskBRL, maskOdometer, parseOdometerInput, getPlatformBalanceDelta, getTransactionNetValue, formatDecimalBRL, calculateExtraValue, getTransactionFaturamentoReal, formatOdometer, formatBRL } from '../utils/format';
+import { PainelBordo } from './PainelBordo';
 
 interface ShiftControlProps {
   activeShift: Shift | null;
@@ -1094,6 +1095,19 @@ export function ShiftControl({
               </div>
             </div>
           </div>
+        )}
+
+        {/* PAINEL DE BORDO */}
+        {activeShift && (
+          <PainelBordo
+            activeShift={activeShift}
+            fuelLitersRemaining={currentFuelLiters}
+            fuelCapacity={activeCapacity}
+            autonomyKmPerL={activeConsumption}
+            totalKmRun={displayKmRun}
+            remainingKm={remainingKm}
+            vehicleType={fuelVehicleType}
+          />
         )}
 
         {/* MONITOR DE COMBUSTÍVEL */}
