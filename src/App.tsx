@@ -22,6 +22,7 @@ import { TripTracker } from './components/TripTracker';
 import { LoanSystemApp } from './components/LoanSystemApp';
 import { playBeep, playCashRegister } from './utils/audio';
 import { formatBRL, getTransactionNetValue, formatDecimalBRL, calculateExtraValue, getTransactionFaturamentoReal, getPlatformBalanceDelta } from './utils/format';
+import { useShiftGPS } from './hooks/useShiftGPS';
 
 export default function App() {
   // --- STATE ---
@@ -57,6 +58,11 @@ export default function App() {
   });
   // Liters currently being typed into the refuel field (not yet saved) — drives the live dashboard gauge needle.
   const [draftFuelLiters, setDraftFuelLiters] = useState<number>(0);
+
+  // --- GPS DO TURNO — ativa automaticamente quando o caixa está aberto ---
+  // Computa hasOpenShift inline (sem estado extra) para alimentar o hook
+  const hasOpenShift = shifts.some(s => s.status === 'OPEN');
+  const shiftGps = useShiftGPS(hasOpenShift);
 
   // --- PWA INSTALL STATE & HOOK ---
   const [pwaPrompt, setPwaPrompt] = useState<any>(null);
@@ -404,11 +410,23 @@ export default function App() {
     speedSimCountRef.current = speedSimCount;
   }, [speedSimCount]);
 
+  // --- SINCRONIZA velocidade do GPS do turno com o velocímetro flutuante ---
+  // Quando o caixa está aberto, o GPS de turno (useShiftGPS) é a fonte de dados;
+  // quando não há caixa aberto, o velocímetro manual (abaixo) assume.
+  useEffect(() => {
+    if (hasOpenShift && shiftGps.isActive) {
+      setCurrentSpeed(shiftGps.speedKmh);
+    }
+  }, [shiftGps.speedKmh, shiftGps.isActive, hasOpenShift]);
+
   // --- GPS GEOLOCATION VELOCITY TRACKING ---
   useEffect(() => {
-    if (!isSpeedometerActive) {
-      setCurrentSpeed(0);
-      lastPositionRef.current = null;
+    // Quando o caixa está aberto, o useShiftGPS já gerencia o GPS — evita duplo watcher
+    if (!isSpeedometerActive || hasOpenShift) {
+      if (!hasOpenShift) {
+        setCurrentSpeed(0);
+        lastPositionRef.current = null;
+      }
       return;
     }
 
@@ -517,7 +535,7 @@ export default function App() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [isSpeedometerActive]);
+  }, [isSpeedometerActive, hasOpenShift]);
 
   const handleToggleSpeedometer = () => {
     const newState = !isSpeedometerActive;
@@ -2173,6 +2191,10 @@ export default function App() {
                     setExcludeSundays(nextVal);
                     localStorage.setItem('moob_caixa_exclude_sundays', String(nextVal));
                   }}
+                  gpsSpeedKmh={shiftGps.speedKmh}
+                  gpsShiftKm={shiftGps.shiftKm}
+                  isGpsActive={shiftGps.isActive}
+                  gpsAccuracy={shiftGps.accuracy}
                 />
               </div>
             </motion.div>

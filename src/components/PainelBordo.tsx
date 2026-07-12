@@ -10,12 +10,17 @@ interface PainelBordoProps {
   fuelLitersRemaining: number;   // litros restantes estimados
   fuelCapacity: number;           // capacidade do tanque
   autonomyKmPerL: number;         // km/L configurado
-  totalKmRun: number;             // km rodados (odômetro)
+  totalKmRun: number;             // km rodados (odômetro via transações)
   remainingKm: number;            // km que ainda dá pra rodar com o combustível
   vehicleType: 'CARRO' | 'MOTO';
   onToggleVehicle?: () => void;   // alterna entre Carro e Moto
   fuelCostEstimate?: number;      // custo estimado de reposição (R$)
   fuelLitersConsumed?: number;    // litros consumidos no turno
+  // GPS externo (do hook useShiftGPS — auto-ativo quando o caixa está aberto)
+  externalSpeed?: number;         // km/h do GPS do turno
+  externalShiftKm?: number;       // km acumulados no turno pelo GPS
+  isExternalGpsActive?: boolean;  // true = GPS do turno está rodando
+  externalAccuracy?: number | null; // precisão do sinal em metros
 }
 
 type GpsSignal = 'SEM_SINAL' | 'FRACO' | 'BOM' | 'EXCELENTE';
@@ -57,6 +62,10 @@ export function PainelBordo({
   onToggleVehicle,
   fuelCostEstimate,
   fuelLitersConsumed,
+  externalSpeed,
+  externalShiftKm,
+  isExternalGpsActive = false,
+  externalAccuracy,
 }: PainelBordoProps) {
   const [isActive, setIsActive] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
@@ -150,8 +159,22 @@ export function PainelBordo({
   const segundos = totalSeconds % 60;
 
   const shiftHours = shiftMs / 3_600_000;
-  const combinedKm = totalKmRun + gpsKm;
+  // Usa GPS externo do turno (useShiftGPS) quando disponível, senão usa GPS interno
+  const combinedKm = totalKmRun + (isExternalGpsActive ? (externalShiftKm ?? 0) : gpsKm);
   const avgSpeed = shiftHours > 0.05 ? combinedKm / shiftHours : 0;
+
+  // Velocidade a exibir: prioriza GPS externo (mais preciso, já filtrado por gpsProcessor)
+  const displaySpeed = isExternalGpsActive ? (externalSpeed ?? 0) : currentSpeed;
+  const displayIsActive = isExternalGpsActive || isActive;
+
+  // Sinal GPS a partir da precisão externa ou interna
+  const effectiveAccuracy = isExternalGpsActive ? (externalAccuracy ?? null) : gpsAccuracy;
+  const effectiveSignal: GpsSignal = effectiveAccuracy === null
+    ? 'SEM_SINAL'
+    : effectiveAccuracy <= 15 ? 'EXCELENTE'
+    : effectiveAccuracy <= 35 ? 'BOM'
+    : effectiveAccuracy <= 55 ? 'FRACO'
+    : 'SEM_SINAL';
 
   const fuelPct = fuelCapacity > 0 ? Math.max(0, Math.min(100, (fuelLitersRemaining / fuelCapacity) * 100)) : 0;
 
@@ -170,7 +193,7 @@ export function PainelBordo({
   };
 
   // ── SVG velocímetro ──────────────────────────────────────────────────────────
-  const needleDeg = speedAngle(currentSpeed);
+  const needleDeg = speedAngle(displaySpeed);
   const needleTip = polar(needleDeg, R - 12);
   const needleL = polar(needleDeg + 145, 14);
   const needleR = polar(needleDeg - 145, 14);
@@ -202,7 +225,7 @@ export function PainelBordo({
           <span className="text-[13px] font-black text-white uppercase tracking-widest">
             Painel de Bordo
           </span>
-          {isActive && (
+          {displayIsActive && (
             <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse">
               ● AO VIVO
             </span>
@@ -220,17 +243,24 @@ export function PainelBordo({
               {vehicleType === 'CARRO' ? 'Carro' : 'Moto'}
             </button>
           )}
-          {/* Botão GPS */}
-          <button
-            onClick={() => setIsActive(v => !v)}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-              isActive
-                ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
-                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-            }`}
-          >
-            {isActive ? '⏹ Desligar' : '▶ Ligar GPS'}
-          </button>
+          {/* GPS automático quando caixa está aberto — ou botão manual quando sem caixa */}
+          {isExternalGpsActive ? (
+            <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              GPS Auto
+            </span>
+          ) : (
+            <button
+              onClick={() => setIsActive(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                isActive
+                  ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
+                  : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+              }`}
+            >
+              {isActive ? '⏹ Desligar' : '▶ Ligar GPS'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -243,7 +273,7 @@ export function PainelBordo({
             <svg
               viewBox="0 0 240 195"
               className="w-56 h-48 select-none"
-              style={{ filter: isActive ? 'drop-shadow(0 0 12px rgba(6,182,212,0.2))' : 'none' }}
+              style={{ filter: displayIsActive ? 'drop-shadow(0 0 12px rgba(6,182,212,0.2))' : 'none' }}
             >
               {/* Fundo circular */}
               <circle cx={CX} cy={CY} r={R + 14} fill="#0f172a" stroke="#1e293b" strokeWidth="1.5" />
@@ -272,11 +302,11 @@ export function PainelBordo({
               />
 
               {/* Progresso ativo (velocidade atual) */}
-              {currentSpeed > 0 && (
+              {displaySpeed > 0 && (
                 <path
                   d={arcPath(GAUGE_START, needleDeg, R)}
                   fill="none"
-                  stroke={currentSpeed < 60 ? '#10b981' : currentSpeed < 100 ? '#f59e0b' : '#ef4444'}
+                  stroke={displaySpeed < 60 ? '#10b981' : displaySpeed < 100 ? '#f59e0b' : '#ef4444'}
                   strokeWidth="10"
                   strokeLinecap="round"
                   opacity="0.9"
@@ -308,17 +338,17 @@ export function PainelBordo({
               {/* Agulha */}
               <polygon
                 points={`${needleTip.x.toFixed(1)},${needleTip.y.toFixed(1)} ${needleL.x.toFixed(1)},${needleL.y.toFixed(1)} ${needleR.x.toFixed(1)},${needleR.y.toFixed(1)}`}
-                fill={isActive ? '#06b6d4' : '#334155'}
-                style={{ transition: 'all 0.25s ease-out', filter: isActive ? 'drop-shadow(0 0 4px #06b6d4)' : 'none' }}
+                fill={displayIsActive ? '#06b6d4' : '#334155'}
+                style={{ transition: 'all 0.25s ease-out', filter: displayIsActive ? 'drop-shadow(0 0 4px #06b6d4)' : 'none' }}
               />
 
               {/* Centro hub */}
-              <circle cx={CX} cy={CY} r="8" fill={isActive ? '#0e7490' : '#1e293b'} stroke="#334155" strokeWidth="2" />
-              <circle cx={CX} cy={CY} r="3" fill={isActive ? '#67e8f9' : '#475569'} />
+              <circle cx={CX} cy={CY} r="8" fill={displayIsActive ? '#0e7490' : '#1e293b'} stroke="#334155" strokeWidth="2" />
+              <circle cx={CX} cy={CY} r="3" fill={displayIsActive ? '#67e8f9' : '#475569'} />
 
               {/* Velocidade numérica */}
               <text x={CX} y={CY + 28} textAnchor="middle" fill="white" fontSize="28" fontFamily="monospace" fontWeight="900">
-                {currentSpeed}
+                {displaySpeed}
               </text>
               <text x={CX} y={CY + 42} textAnchor="middle" fill="#64748b" fontSize="9" fontFamily="monospace" fontWeight="bold">
                 km/h
@@ -326,11 +356,11 @@ export function PainelBordo({
             </svg>
 
             {/* Sinal GPS */}
-            <div className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${gpsColor[gpsSignal]}`}>
-              <span className={`w-2 h-2 rounded-full ${gpsDot[gpsSignal]}`} />
-              GPS: {gpsSignal.replace('_', ' ')}
-              {gpsAccuracy != null && gpsSignal !== 'SEM_SINAL' && (
-                <span className="text-slate-500 font-normal normal-case">±{Math.round(gpsAccuracy)}m</span>
+            <div className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${gpsColor[effectiveSignal]}`}>
+              <span className={`w-2 h-2 rounded-full ${gpsDot[effectiveSignal]}`} />
+              GPS: {effectiveSignal.replace('_', ' ')}
+              {effectiveAccuracy != null && effectiveSignal !== 'SEM_SINAL' && (
+                <span className="text-slate-500 font-normal normal-case">±{Math.round(effectiveAccuracy)}m</span>
               )}
             </div>
           </div>

@@ -39,6 +39,11 @@ interface ShiftControlProps {
   excludeSundays?: boolean;
   onToggleExcludeSundays?: () => void;
   draftFuelLiters?: number;
+  // GPS do turno (auto-ativo quando caixa aberto, via useShiftGPS)
+  gpsSpeedKmh?: number;
+  gpsShiftKm?: number;
+  isGpsActive?: boolean;
+  gpsAccuracy?: number | null;
 }
 
 export function ShiftControl({ 
@@ -57,7 +62,11 @@ export function ShiftControl({
   refuelMetrics,
   draftFuelLiters = 0,
   excludeSundays: propsExcludeSundays,
-  onToggleExcludeSundays
+  onToggleExcludeSundays,
+  gpsSpeedKmh,
+  gpsShiftKm,
+  isGpsActive = false,
+  gpsAccuracy
 }: ShiftControlProps) {
   // Local fallback state if not provided as props
   const [localExcludeSundays, setLocalExcludeSundays] = useState<boolean>(() => {
@@ -1007,6 +1016,10 @@ export function ShiftControl({
             onToggleVehicle={toggleFuelVehicleType}
             fuelCostEstimate={displayCost}
             fuelLitersConsumed={displayLiters}
+            externalSpeed={gpsSpeedKmh}
+            externalShiftKm={gpsShiftKm}
+            isExternalGpsActive={isGpsActive}
+            externalAccuracy={gpsAccuracy}
           />
         )}
 

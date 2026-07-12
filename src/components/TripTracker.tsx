@@ -173,6 +173,7 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
   const gpsWatchIdRef    = useRef<number | null>(null);
   const lastGpsCoordsRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const gpsStateRef      = useRef<GpsTrackerState>(gpsTrackerInit());
+  const speedHistoryRef  = useRef<number[]>([]);
   const wakeLockRef      = useRef<any>(null);
 
   // Screen Wake Lock API to prevent device from sleeping in active mode
