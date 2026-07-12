@@ -1,25 +1,37 @@
-# Moob Driver Finance
+# MoobFinance - Caixa & Metas
 
-A React + Express web app for rideshare drivers (Uber/99) to track daily cash flow, goals, loans, and shift/caixa (cash register) sessions. Imported from GitHub.
+## Overview
+A unified financial platform for rideshare drivers (Uber/99). Features cash-flow tracking per shift, earnings reporting, and a peer goal/lending system between driver partners. Built with React + Vite on the frontend, Express + TypeScript on the backend, MongoDB for persistence, Gemini AI for insights, and Mercado Pago for payments.
+
+## How to run
+```
+npm run dev
+```
+Starts the Express server (with Vite middleware in dev mode) on port 5000.
+
+## Required secrets
+| Secret | Purpose |
+|--------|---------|
+| `GEMINI_API_KEY` | Gemini AI features |
+| `MERCADOPAGO_ACCESS_TOKEN` | Payment processing via Mercado Pago |
+| `MONGODB_URI` | Main database connection |
+
+`SESSION_SECRET` is already configured.
 
 ## Stack
-- Frontend: React 19 + Vite 6 + Tailwind CSS 4, served with Vite middleware in dev
-- Backend: Express (`server.ts`) on the same process/port, with MongoDB (Mongoose) for persistence
-- Optional integrations: Gemini AI (payment/receipt validation), Mercado Pago (PIX payments) — both have mock/fallback behavior when their API keys are absent
+- **Frontend**: React 19, Vite 6, Tailwind CSS 4, Recharts, Framer Motion
+- **Backend**: Express 4, TypeScript, tsx (dev runner)
+- **Database**: MongoDB via Mongoose
+- **Payments**: Mercado Pago SDK
+- **AI**: Google Gemini (`@google/genai`)
+- **QR codes**: `qrcode` library
 
-## Running
-- Workflow "Start application" runs `npm run dev` (`node --import tsx server.ts`), serving on port 5000 (frontend + API combined).
-- Production build: `npm run build` then `npm start` (bundles server to `dist/server.cjs`, serves static Vite build).
-
-## Environment / Secrets
-- `MONGODB_URI` — optional; a working fallback Atlas URI is hardcoded in `src/server/config/database.ts`, so the app runs out of the box. Set this secret to use your own database.
-- `GEMINI_API_KEY` — optional; without it, payment/receipt approval falls back to a mock approval.
-- `MERCADOPAGO_ACCESS_TOKEN` — optional; without it, real PIX charges are not created.
-- None of these are required; the app works with defaults/mocks.
-
-## API Routes
-Backend API routes are served under `/moob-api/*`. The frontend fetches from this prefix.
+## API routes
+All backend routes are mounted under `/moob-api/`:
+- `/moob-api/goals` — goal/lending management
+- `/moob-api/shifts` — driver shift/cash tracking
+- `/moob-api/` — payment routes (Mercado Pago)
+- `/moob-api/config/db-status` — database connection status
+- `/moob-api/config/db-uri` — dynamic DB URI configuration
 
 ## User preferences
-
-None recorded yet.
