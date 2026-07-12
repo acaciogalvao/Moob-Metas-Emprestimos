@@ -1215,11 +1215,11 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
                   dragElastic={0}
                   dragMomentum={false}
                   onDrag={(event, info) => {
-                    const offset = info?.offset?.x ?? 0;
+                    const offset = info?.offset?.x ?? (info?.point && info?.start ? info.point.x - info.start.x : 0);
                     setDragX(offset);
                   }}
                   onDragEnd={(event, info) => {
-                    const offset = info?.offset?.x ?? 0;
+                    const offset = info?.offset?.x ?? (info?.point && info?.start ? info.point.x - info.start.x : 0);
                     if (offset >= sliderThreshold) {
                       handleFinishTrip();
                     } else {

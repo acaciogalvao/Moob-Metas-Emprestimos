@@ -64,6 +64,7 @@ export interface Shift {
   finalFuelLiters?: number; // Litros finais no tanque ao fechar caixa
   finalFuelLevel?: string; // Nível final do tanque ao fechar caixa
   monthlyGoal?: number; // Meta Mensal de Faturamento Real
+  dailyKmGoal?: number; // Meta Diária de KM Rodados
   ajusteSaldoAnterior?: number; // Ajuste do saldo anterior (valor de entrada - saldo anterior)
   saldoAnterior?: number; // Faturamento real do caixa anterior que serviu como referência
 }

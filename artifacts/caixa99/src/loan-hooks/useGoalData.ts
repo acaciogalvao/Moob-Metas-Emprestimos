@@ -41,7 +41,7 @@ export const useGoalData = (
 
       // 2. Busca e sincroniza do servidor
       try {
-        const res = await fetch("/moob-api/goals");
+        const res = await fetch("/api/goals");
         if (!res.ok) return;
 
         const contentType = res.headers.get("content-type");
@@ -77,7 +77,7 @@ export const useGoalData = (
   useEffect(() => {
     const fetchGoalsList = async () => {
       try {
-        const res = await fetch("/moob-api/goals");
+        const res = await fetch("/api/goals");
         if (!res.ok) return;
 
         const contentType = res.headers.get("content-type");
@@ -110,7 +110,7 @@ export const useGoalData = (
       }
 
       try {
-        const res = await fetch(`/moob-api/goal/${currentGoalId}`);
+        const res = await fetch(`/api/goal/${currentGoalId}`);
         if (!res.ok) return;
 
         const contentType = res.headers.get("content-type");
@@ -178,13 +178,13 @@ export const useGoalData = (
 
       let res;
       if (currentGoalId) {
-        res = await fetch(`/moob-api/goal/${currentGoalId}`, {
+        res = await fetch(`/api/goal/${currentGoalId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
         });
       } else {
-        res = await fetch("/moob-api/goal", {
+        res = await fetch("/api/goal", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
@@ -209,7 +209,7 @@ export const useGoalData = (
         }
 
         // Atualiza a lista geral
-        const listRes = await fetch("/moob-api/goals");
+        const listRes = await fetch("/api/goals");
         if (listRes.ok) {
           const listContentType = listRes.headers.get("content-type");
           if (listContentType && listContentType.includes("application/json")) {
@@ -233,7 +233,7 @@ export const useGoalData = (
     setShowClearHistoryConfirm: (v: boolean) => void,
   ) => {
     try {
-      await fetch(`/moob-api/goal/${currentGoalId}/clear-history`, {
+      await fetch(`/api/goal/${currentGoalId}/clear-history`, {
         method: "POST",
       });
       showToast("Histórico excluído com sucesso!", "success");
@@ -244,7 +244,7 @@ export const useGoalData = (
       goalState.setPaymentsHistory([]);
 
       // Recarrega para garantir sincronização
-      const res = await fetch(`/moob-api/goal/${currentGoalId}`);
+      const res = await fetch(`/api/goal/${currentGoalId}`);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem(`offline_goal_${currentGoalId}`, JSON.stringify(data));
@@ -262,12 +262,12 @@ export const useGoalData = (
     setShowDeleteConfirm: (v: boolean) => void,
   ) => {
     try {
-      await fetch(`/moob-api/goal/${currentGoalId}`, {
+      await fetch(`/api/goal/${currentGoalId}`, {
         method: "DELETE",
       });
 
       // Atualiza lista do servidor
-      const listRes = await fetch("/moob-api/goals");
+      const listRes = await fetch("/api/goals");
       if (listRes.ok) {
         const data = await listRes.json();
         setGoalsList(data);
@@ -300,10 +300,10 @@ export const useGoalData = (
   const handleDeletePaymentItem = async (pid: string) => {
     if (!currentGoalId) return;
     try {
-      await fetch(`/moob-api/goal/${currentGoalId}/payment/${pid}`, {
+      await fetch(`/api/goal/${currentGoalId}/payment/${pid}`, {
         method: "DELETE",
       });
-      const res = await fetch(`/moob-api/goal/${currentGoalId}`);
+      const res = await fetch(`/api/goal/${currentGoalId}`);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem(`offline_goal_${currentGoalId}`, JSON.stringify(data));

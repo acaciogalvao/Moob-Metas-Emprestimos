@@ -91,7 +91,19 @@ export default function App() {
 
   // --- GLOBAL SCREEN WAKE LOCK STATE & HOOK ---
   const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
+  const [wakeLockEnabled, setWakeLockEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('moob_wake_lock_enabled') === 'true';
+    }
+    return false;
+  });
   const wakeLockRef = useRef<any>(null);
+  const wakeLockEnabledRef = useRef<boolean>(false);
+
+  // Sync ref
+  useEffect(() => {
+    wakeLockEnabledRef.current = wakeLockEnabled;
+  }, [wakeLockEnabled]);
 
   const requestWakeLock = async () => {
     if (typeof window !== 'undefined' && 'wakeLock' in navigator) {
@@ -100,6 +112,11 @@ export default function App() {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
           setIsWakeLockActive(true);
           console.log('[WakeLock] Screen Wake Lock acquired successfully');
+          wakeLockRef.current.addEventListener('release', () => {
+            console.log('[WakeLock] Screen Wake Lock was released by the browser');
+            wakeLockRef.current = null;
+            setIsWakeLockActive(false);
+          });
         }
       } catch (err) {
         console.warn('[WakeLock] Wake Lock request failed:', err);
@@ -114,7 +131,7 @@ export default function App() {
         await wakeLockRef.current.release();
         wakeLockRef.current = null;
         setIsWakeLockActive(false);
-        console.log('[WakeLock] Screen Wake Lock released');
+        console.log('[WakeLock] Screen Wake Lock released manually');
       } catch (err) {
         console.error('[WakeLock] Wake Lock release error:', err);
       }
@@ -124,19 +141,21 @@ export default function App() {
   // Attempt to lock screen on mount, touch, and visibility change
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && wakeLockEnabledRef.current) {
         await requestWakeLock();
       }
     };
 
     const handleInteraction = async () => {
-      if (!wakeLockRef.current) {
+      if (wakeLockEnabledRef.current && !wakeLockRef.current) {
         await requestWakeLock();
       }
     };
 
-    // Initial request
-    requestWakeLock();
+    // If enabled initially, request lock
+    if (wakeLockEnabled) {
+      requestWakeLock();
+    }
 
     // Event listeners to handle user interaction and visibility
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -983,10 +1002,10 @@ export default function App() {
 
     const saldosPlataformas = uberBalance + ninetyNineBalance;
 
-    const totalValoresExtras = rides.reduce((s, t) => {
-      const pExtra = t.platform === 'PARTICULAR' ? t.value : 0;
-      return s + (t.extraChargedValue || 0) + pExtra;
-    }, 0);
+    const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
+    const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
+    const valoresExtrasParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + t.value, 0);
+    const totalValoresExtras = valoresExtrasUber + valoresExtras99 + valoresExtrasParticular;
 
     const expectedGeral = rawIn - rawOut;
 
@@ -1046,6 +1065,9 @@ export default function App() {
       valoresOfertadosUber,
       valoresOfertados99,
       totalValoresExtras,
+      valoresExtrasUber,
+      valoresExtras99,
+      valoresExtrasParticular,
       totalCancels,
       cancelsCount,
       totalTips,
@@ -1156,7 +1178,8 @@ export default function App() {
     initial99Balance?: number,
     initialFuelLiters?: number,
     initialFuelLevel?: string,
-    monthlyGoal?: number
+    monthlyGoal?: number,
+    dailyKmGoal?: number
   ) => {
     // Close any other open shifts first to avoid conflicts
     const closedOldShifts = shifts.map(s => {
@@ -1204,6 +1227,7 @@ export default function App() {
       initialFuelLiters: initialFuelLiters !== undefined && !isNaN(initialFuelLiters) ? initialFuelLiters : undefined,
       initialFuelLevel,
       monthlyGoal: monthlyGoal !== undefined && !isNaN(monthlyGoal) ? monthlyGoal : undefined,
+      dailyKmGoal: dailyKmGoal !== undefined && !isNaN(dailyKmGoal) ? dailyKmGoal : undefined,
       ajusteSaldoAnterior: ajuste,
       saldoAnterior: lastClosedShift ? previousFaturamentoReal : undefined
     };
@@ -1543,10 +1567,13 @@ export default function App() {
           <button
             onClick={async () => {
               playBeep();
-              if (isWakeLockActive) {
-                await releaseWakeLock();
-              } else {
+              const newEnabled = !wakeLockEnabled;
+              setWakeLockEnabled(newEnabled);
+              localStorage.setItem('moob_wake_lock_enabled', String(newEnabled));
+              if (newEnabled) {
                 await requestWakeLock();
+              } else {
+                await releaseWakeLock();
               }
             }}
             title={isWakeLockActive ? "Tela Sempre Ativa: Ativada" : "Tela Sempre Ativa: Desativada (Clique para Ativar)"}
@@ -1556,7 +1583,7 @@ export default function App() {
                 : 'border-slate-800 bg-slate-950/75 hover:border-amber-500/50 hover:bg-slate-900 text-slate-400 hover:text-white'
             }`}
           >
-            <Eye className={`w-3.5 h-3.5 ${isWakeLockActive ? 'animate-pulse text-emerald-450' : 'text-slate-500'}`} />
+            <Eye className={`w-3.5 h-3.5 ${isWakeLockActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
             <span className="text-[14px] font-black uppercase font-sans hidden lg:inline">
               {isWakeLockActive ? 'Tela Ativa' : 'Manter Tela Ativa'}
             </span>
@@ -1928,12 +1955,25 @@ export default function App() {
             <div className="mt-1 text-lg font-black font-mono text-amber-400 tracking-tight leading-normal">
               {formatBRL(financialTotals.totalValoresExtras)}
             </div>
-            <div className="text-[12px] text-slate-500 mt-2 font-sans leading-none flex flex-col gap-1 border-t border-slate-800/80 pt-2 shrink-0">
-              <div className="flex justify-between text-amber-500 font-bold font-mono">
-                <span>Adicional:</span>
+            <div className="text-[12px] text-slate-500 mt-2 font-mono leading-none flex flex-col gap-1.5 border-t border-slate-800/80 pt-2 shrink-0">
+              <div className="flex justify-between text-slate-400">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />Uber:</span>
+                <span className="font-bold text-white">R$ {formatDecimalBRL(financialTotals.valoresExtrasUber)}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />99 App:</span>
+                <span className="font-bold text-amber-400">R$ {formatDecimalBRL(financialTotals.valoresExtras99)}</span>
+              </div>
+              {financialTotals.valoresExtrasParticular > 0 && (
+                <div className="flex justify-between text-slate-400">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />Particular:</span>
+                  <span className="font-bold text-emerald-400">R$ {formatDecimalBRL(financialTotals.valoresExtrasParticular)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-amber-500 font-bold border-t border-slate-800/40 pt-1.5 mt-0.5">
+                <span className="font-sans">Adicional Total:</span>
                 <span>+{financialTotals.totalValoresOfertados > 0 ? ((financialTotals.totalValoresExtras / financialTotals.totalValoresOfertados) * 100).toFixed(0) : '0'}%</span>
               </div>
-              <span className="text-[11px] text-amber-400 font-medium font-sans mt-1">Ganho sobre o pago p/ app</span>
             </div>
           </div>
 
@@ -2038,12 +2078,35 @@ export default function App() {
             <span className="text-[12.5px] text-indigo-400 font-bold uppercase tracking-wider block" title="Total de quilômetros rodados no turno e o quanto foi fora dos aplicativos">KM Rodados no Turno</span>
             <div className="mt-1 text-lg font-black font-mono text-white tracking-tight leading-normal flex justify-between items-baseline">
               <span>{financialTotals.totalKM.toFixed(1).replace('.', ',')} <span className="text-[13px] font-sans font-normal text-slate-500">KM</span></span>
-              {financialTotals.particularKM > 0 && (
+              {activeShift && activeShift.dailyKmGoal !== undefined && activeShift.dailyKmGoal > 0 ? (
+                <span className="text-[10px] text-indigo-400 font-bold bg-indigo-950/40 border border-indigo-900/40 px-1.5 py-0.5 rounded">
+                  Meta: {activeShift.dailyKmGoal} KM
+                </span>
+              ) : financialTotals.particularKM > 0 ? (
                 <span className="text-[10px] text-indigo-400 font-bold bg-indigo-950/40 border border-indigo-900/40 px-1 py-0.5 rounded animate-pulse">
                   Por Fora
                 </span>
-              )}
+              ) : null}
             </div>
+
+            {activeShift && activeShift.dailyKmGoal !== undefined && activeShift.dailyKmGoal > 0 && (
+              <div className="mt-2">
+                <div className="w-full bg-slate-950 rounded-full h-1 overflow-hidden">
+                  <div 
+                    className="bg-indigo-500 h-1 rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, (financialTotals.totalKM / activeShift.dailyKmGoal) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-1 font-mono">
+                  <span>Progresso: {((financialTotals.totalKM / activeShift.dailyKmGoal) * 100).toFixed(0)}%</span>
+                  {activeShift.dailyKmGoal - financialTotals.totalKM > 0 ? (
+                    <span>Falta: {(activeShift.dailyKmGoal - financialTotals.totalKM).toFixed(1).replace('.', ',')} KM</span>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">✅ Meta batida!</span>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="text-[11.5px] font-bold flex flex-col gap-1 text-slate-350 font-mono mt-1.5 pt-1.5 border-t border-slate-800/40">
               <div className="flex justify-between items-center text-slate-400">
                 <span>Uber:</span>

@@ -50,7 +50,7 @@ export const usePayment = ({
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/moob-api/check-payment/${paymentId}`);
+        const res = await fetch(`/api/check-payment/${paymentId}`);
         const data = await res.json();
         if (data.status === "approved") {
           setPaymentSuccess(true);
@@ -89,7 +89,7 @@ export const usePayment = ({
       let response;
       if (activePixKey) {
         // Opção 1: Chave PIX direta do parceiro cadastrada
-        response = await fetch("/moob-api/generate-static-pix", {
+        response = await fetch("/api/generate-static-pix", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -103,7 +103,7 @@ export const usePayment = ({
         setIsManualPayment(true);
       } else {
         // Opção 2: API de pagamentos (Mercado Pago)
-        response = await fetch("/moob-api/create-pix-payment", {
+        response = await fetch("/api/create-pix-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -158,7 +158,7 @@ export const usePayment = ({
 
     setIsConfirmingPayment(true);
     try {
-      const res = await fetch("/moob-api/manual-pay", {
+      const res = await fetch("/api/manual-pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -210,7 +210,7 @@ export const usePayment = ({
     setIsVerifyingReceipt(true);
     try {
       const payerName = currentPayer === "P1" ? nameP1 : nameP2;
-      const res = await fetch("/moob-api/verify-receipt", {
+      const res = await fetch("/api/verify-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

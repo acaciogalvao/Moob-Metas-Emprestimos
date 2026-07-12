@@ -76,7 +76,8 @@ interface QuickRegisterProps {
     initial99Balance?: number,
     initialFuelLiters?: number,
     initialFuelLevel?: string,
-    monthlyGoal?: number
+    monthlyGoal?: number,
+    dailyKmGoal?: number
   ) => void;
   vehicleType?: 'CAR' | 'BIKE';
   lastClosedShiftFaturamento?: number;
@@ -151,6 +152,9 @@ export function QuickRegister({
   const [startingFuelLitersInput, setStartingFuelLitersInput] = useState<string>('');
   const [startingMonthlyGoalInput, setStartingMonthlyGoalInput] = useState<string>(() => {
     return localStorage.getItem('moob_caixa_monthly_goal') || '6.000,00';
+  });
+  const [startingDailyKmGoalInput, setStartingDailyKmGoalInput] = useState<string>(() => {
+    return localStorage.getItem('moob_caixa_daily_km_goal') || '150';
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [openingError, setOpeningError] = useState<string | null>(null);
@@ -881,6 +885,29 @@ export function QuickRegister({
                   </div>
                 );
               })()}
+            </div>
+
+            <div>
+              <label className="block text-[14px] font-extrabold text-indigo-400 tracking-wider uppercase mb-1 flex items-center gap-1">
+                <span>🛣️</span> Meta Diária de KM Rodados
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono">
+                  KM
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg py-2 pl-10 pr-3 text-white text-sm font-black font-mono focus:border-amber-500 focus:outline-none"
+                  placeholder="150"
+                  value={startingDailyKmGoalInput}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                    setStartingDailyKmGoalInput(cleaned);
+                    localStorage.setItem('moob_caixa_daily_km_goal', cleaned);
+                  }}
+                />
+              </div>
             </div>
 
             <div>
@@ -1917,7 +1944,8 @@ export function QuickRegister({
 
             setOpeningError(null);
             const monthlyGoalVal = parseBRLInput(startingMonthlyGoalInput) || 0;
-            onOpenShift(pixVal, cashVal, odoVal, uberVal, ninetyNineVal, fuelLitersVal, fuelLevelLabel, monthlyGoalVal);
+            const dailyKmGoalVal = startingDailyKmGoalInput ? parseInt(startingDailyKmGoalInput, 10) : undefined;
+            onOpenShift(pixVal, cashVal, odoVal, uberVal, ninetyNineVal, fuelLitersVal, fuelLevelLabel, monthlyGoalVal, dailyKmGoalVal);
             playCashRegister();
           }}
           className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3 px-5 rounded-lg shadow-sm transition-all active:scale-97 text-xs uppercase tracking-wider"

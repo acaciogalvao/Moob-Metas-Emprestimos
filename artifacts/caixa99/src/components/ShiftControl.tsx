@@ -2748,7 +2748,9 @@ export function ShiftControl({
                   const ninetyNineFeePct = ninetyNinePassengerApp > 0 ? (ninetyNineFees / ninetyNinePassengerApp) * 100 : 0;
 
                   const totalPassengerApp = uberPassengerApp + ninetyNinePassengerApp;
-                  const totalExtraCharged = uberExtraCharged + ninetyNineExtraCharged;
+                  const particularRides = rides.filter(t => t.platform === 'PARTICULAR');
+                  const particularExtra = particularRides.reduce((s, t) => s + t.value, 0);
+                  const totalExtraCharged = uberExtraCharged + ninetyNineExtraCharged + particularExtra;
                   const totalFees = uberFees + ninetyNineFees;
                   const totalFeePct = totalPassengerApp > 0 ? (totalFees / totalPassengerApp) * 100 : 0;
                   const netResult = totalExtraCharged - totalFees;
@@ -2814,6 +2816,20 @@ export function ShiftControl({
                             <span className="text-slate-500">Total Pedido Por Fora (Extra):</span>
                             <span className="text-emerald-400 font-black">+R$ {formatDecimalBRL(totalExtraCharged)}</span>
                           </div>
+                          <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                            <span>↳ Uber Extra:</span>
+                            <span>+R$ {formatDecimalBRL(uberExtraCharged)}</span>
+                          </div>
+                          <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                            <span>↳ 99 App Extra:</span>
+                            <span>+R$ {formatDecimalBRL(ninetyNineExtraCharged)}</span>
+                          </div>
+                          {particularExtra > 0 && (
+                            <div className="flex justify-between text-[11.5px] font-mono leading-tight pl-3 text-slate-450">
+                              <span>↳ Particular Extra:</span>
+                              <span>+R$ {formatDecimalBRL(particularExtra)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-[13px] font-mono leading-tight">
                             <span className="text-slate-500">Taxas Retidas pelas Plataformas:</span>
                             <span className="text-rose-400 font-bold">-R$ {formatDecimalBRL(totalFees)}</span>
