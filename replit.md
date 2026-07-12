@@ -18,6 +18,17 @@ Starts the Express server (with Vite middleware in dev mode) on port 5000.
 
 `SESSION_SECRET` is already configured.
 
+## Running for daily/personal use (e.g. self-hosted on Termux)
+Use production mode, not `npm run dev`. Dev mode keeps a Vite HMR WebSocket open; many mobile
+browsers and installed PWAs drop that socket when the tab is backgrounded, and Vite's client
+treats the reconnect as "server restarted" and forces a full page reload — every time you
+switch away and back. Production mode has no dev/HMR client at all, so this never happens.
+
+```
+npm run build
+npm start
+```
+
 ## Setup status (2026-07-12)
 Dependencies installed and the `Start application` workflow (`npm run dev` on port 5000) is running and verified via screenshot — the app boots and connects to the fallback MongoDB successfully. Gemini and Mercado Pago secrets were not provided, so those features are not yet functional.
 
