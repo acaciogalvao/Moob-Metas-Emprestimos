@@ -1094,52 +1094,21 @@ export default function App() {
     const dailyGoal = currentMonthlyGoal / daysInMonth;
     const weeklyGoal = dailyGoal * daysInWeek;
 
-    // Sum faturamento bruto for all shifts in the current calendar month
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    // Faturamento pós despesas do turno vigente (totalIn líquido - totalOut)
+    // É o valor que o motorista realmente ganhou neste caixa, após todas as despesas
+    const currentShiftNet = activeShift ? Math.max(0, faturamentoPosDespesas) : 0;
 
-    const accumulatedMonthlyFaturamento = shifts.reduce((total, shift) => {
-      const openedDate = new Date(shift.openedAt);
-      if (openedDate.getFullYear() === currentYear && openedDate.getMonth() === currentMonth) {
-        const shiftRides = shift.transactions.filter(t => t.type === 'IN' && t.category === 'CORRIDA' && !t.isVirtual);
-        const shiftInflows = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
-        const shiftExpenses = shift.transactions.filter(t => t.type === 'OUT');
-        
-        // Usa getTransactionNetValue (appOfferValue + extra) para consistência com faturamentoPosDespesas
-        const shiftNetIn = shiftRides.reduce((s, t) => s + getTransactionNetValue(t), 0)
-          + shiftInflows.filter(t => t.category !== 'CORRIDA' && t.category !== 'CAMBIO_PIX' && t.category !== 'CAMPANHA').reduce((s, t) => s + t.value, 0);
-        
-        const shiftOut = shiftExpenses.filter(t => t.category !== 'CAMBIO_PIX').reduce((s, t) => s + t.value, 0);
-        const shiftAdjustment = shift.ajusteSaldoAnterior || 0;
-        
-        return total + (shiftNetIn - shiftOut) + shiftAdjustment;
-      }
-      return total;
-    }, 0);
-
-    const activeShiftFaturamento = activeShift ? financialTotals.faturamentoBruto : 0;
-    // Acumula todos os caixas do mês atual (pós despesas = netIn - out)
-    const totalMonthFaturamento = accumulatedMonthlyFaturamento;
-    const faltaParaMeta = Math.max(0, currentMonthlyGoal - totalMonthFaturamento);
-
-    const progressPct = currentMonthlyGoal > 0 ? (totalMonthFaturamento / currentMonthlyGoal) * 100 : 0;
-
-    const activeExpenses = activeShift ? (financialTotals?.despesasTotais || 0) : 0;
-    const dailyGoalWithExpenses = dailyGoal;
-    const weeklyGoalWithExpenses = weeklyGoal;
+    // Progresso = quanto do turno vigente cobre a meta diária
+    const progressPct = dailyGoal > 0 ? (currentShiftNet / dailyGoal) * 100 : 0;
+    const faltaParaMeta = Math.max(0, dailyGoal - currentShiftNet);
 
     return {
       monthlyGoal: currentMonthlyGoal,
       dailyGoal,
       weeklyGoal,
-      dailyGoalWithExpenses,
-      weeklyGoalWithExpenses,
-      activeExpenses,
-      accumulatedMonthlyFaturamento: totalMonthFaturamento,
+      accumulatedMonthlyFaturamento: currentShiftNet,
       faltaParaMeta,
       progressPct,
-      activeShiftFaturamento
     };
   })();
 
@@ -1986,7 +1955,7 @@ export default function App() {
             <div className="mt-1 text-lg font-black font-mono text-amber-400 tracking-tight leading-normal flex items-center justify-between">
               <div>
                 {monthlyGoalMath.progressPct.toFixed(0)}%
-                <span className="text-[14px] text-slate-400 font-sans font-normal ml-1">do mês</span>
+                <span className="text-[14px] text-slate-400 font-sans font-normal ml-1">da diária</span>
               </div>
               <button
                 type="button"
