@@ -12,10 +12,9 @@ import {
 } from 'lucide-react';
 
 import { Shift, Transaction, PlatformType, TransactionType, PaymentMethod, PeriodFilter } from './types';
-import { getMockShifts } from './utils/mockData';
+import { getMockShifts } from './frommockData';
 import { QuickRegister } from './components/QuickRegister';
-import { ShiftControl } from './components/ShiftControl';
-import { HistoryList } from './components/HistoryList';
+import { ShiftControl } from './components/ShQuickRegister''import { HistoryList } frfrom./components/HistoryList';
 import { Charts } from './components/Charts';
 import { PdfReport } from './components/PdfReport';
 import { TripTracker } from './components/TripTracker';
