@@ -287,14 +287,34 @@ export function QuickRegister({
     const distance = currentOdo > initialOdo ? (currentOdo - initialOdo) : 0;
     
     const litersConsumed = activeConsumption > 0 && distance > 0 ? (distance / activeConsumption) : 0;
-    
+
+    // Soma todos os abastecimentos já registrados neste turno para corrigir o nível atual do tanque
+    const previousRefuelLiters = (activeShift.transactions || [])
+      .filter(t => (t.category === 'COMBUSTIVEL' || (t.liters !== undefined && t.liters > 0)) && t.liters && t.liters > 0)
+      .reduce((acc, t) => acc + (t.liters || 0), 0);
+
     const initialFuelLiters = activeShift.initialFuelLiters !== undefined ? activeShift.initialFuelLiters : activeCapacity;
-    const fuelBeforeRefuel = Math.max(0, initialFuelLiters - litersConsumed);
+    // Nível antes deste abastecimento = inicial + abastecimentos anteriores - consumido desde início
+    const fuelBeforeRefuel = Math.max(0, initialFuelLiters + previousRefuelLiters - litersConsumed);
     const percentBeforeRefuel = (fuelBeforeRefuel / activeCapacity) * 100;
     
     const litersToRefuel = parseFuelLiters(fuelLiters);
     const fuelAfterRefuel = Math.min(activeCapacity, fuelBeforeRefuel + litersToRefuel);
     const percentAfterRefuel = (fuelAfterRefuel / activeCapacity) * 100;
+
+    // km/L total do turno (combustível total consumido = inicial + reabastecimentos - o que sobrou antes deste)
+    const totalFuelConsumedEstimate = Math.max(0, initialFuelLiters + previousRefuelLiters - fuelBeforeRefuel);
+    const kmPerLTotal = distance > 0 && totalFuelConsumedEstimate > 0
+      ? distance / totalFuelConsumedEstimate
+      : undefined;
+
+    // KM por plataforma e por fora (para exibir breakdown no auto-fill)
+    const kmPorPlataforma = (activeShift.transactions || [])
+      .filter(t => t.type === 'IN' && t.category === 'CORRIDA' && t.km !== undefined && !t.isVirtual && (t.platform === 'UBER' || t.platform === '99'))
+      .reduce((acc, t) => acc + (t.km || 0), 0);
+    const kmPorFora = (activeShift.transactions || [])
+      .filter(t => t.type === 'IN' && t.category === 'CORRIDA' && t.km !== undefined && !t.isVirtual && t.platform === 'PARTICULAR')
+      .reduce((acc, t) => acc + (t.km || 0), 0);
 
     // Find previous odometer reference for partial consumption calculation
     const fuelTxs = activeShift.transactions
@@ -318,6 +338,7 @@ export function QuickRegister({
       distance,
       litersConsumed,
       initialFuelLiters,
+      previousRefuelLiters,
       fuelBeforeRefuel,
       percentBeforeRefuel,
       litersToRefuel,
@@ -327,7 +348,11 @@ export function QuickRegister({
       lastOdometerRef,
       isSinceLastRefuel,
       actualLegDistance,
-      actualConsumption
+      actualConsumption,
+      kmPerLTotal,
+      kmPorPlataforma,
+      kmPorFora,
+      totalFuelConsumedEstimate
     };
   })();
 
@@ -385,18 +410,23 @@ export function QuickRegister({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Calcula o hodômetro estimado: inicial + todos os km de plataformas (Uber/99) + corridas por fora (Particular)
+  const calcEstimatedOdometer = (): number | null => {
+    if (!activeShift || activeShift.initialOdometer === undefined) return null;
+    const kmRodados = (activeShift.transactions || [])
+      .filter(t => t.type === 'IN' && t.category === 'CORRIDA' && t.km !== undefined && !t.isVirtual)
+      .reduce((acc, t) => acc + (t.km || 0), 0);
+    return activeShift.initialOdometer + kmRodados;
+  };
+
   // Auto-fill the refuel odometer field with (odômetro inicial + km rodados) as soon as the user
   // enters the fuel flow, so they only need to correct it if it differs from the real reading.
   useEffect(() => {
     const isFuelContext = txType === 'FUEL' || (txType === 'OUT' && expenseCategory === 'COMBUSTIVEL');
     if (!isFuelContext || !activeShift || activeShift.initialOdometer === undefined || fuelOdometerInput) return;
 
-    const kmRodados = (activeShift.transactions || [])
-      .filter(t => t.type === 'IN' && t.category === 'CORRIDA' && t.km !== undefined && !t.isVirtual)
-      .reduce((acc, t) => acc + (t.km || 0), 0);
-
-    const estimatedOdo = activeShift.initialOdometer + kmRodados;
-    setFuelOdometerInput(formatOdometer(estimatedOdo));
+    const est = calcEstimatedOdometer();
+    if (est !== null) setFuelOdometerInput(formatOdometer(est));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [txType, expenseCategory, activeShift]);
 
@@ -2275,9 +2305,22 @@ export function QuickRegister({
 
                 {/* HODÔMETRO NO ABASTECIMENTO */}
                 <div className="border-t border-slate-800/80 pt-3">
-                  <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                    <span>Hodômetro no Abastecimento (KM)</span>
-                    <span className="text-sm text-amber-500/85 font-normal normal-case">opcional para calibrar ponteiro</span>
+                  <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <div className="flex items-center justify-between">
+                      <span>Hodômetro no Abastecimento (KM)</span>
+                      {activeShift?.initialOdometer !== undefined && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const est = calcEstimatedOdometer();
+                            if (est !== null) setFuelOdometerInput(formatOdometer(est));
+                          }}
+                          className="text-[11px] text-amber-400 font-bold normal-case hover:text-amber-300 transition-colors flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded"
+                        >
+                          ↺ Recalcular
+                        </button>
+                      )}
+                    </div>
                   </label>
                   <div className="relative">
                     <input
@@ -2292,9 +2335,37 @@ export function QuickRegister({
                       KM
                     </span>
                   </div>
-                  <span className="text-sm text-slate-500 block mt-1 leading-tight">
-                    Insira o hodômetro atual para calibrar o ponteiro do tanque com base no consumo real desde a abertura do caixa.
-                  </span>
+                  {/* Breakdown do hodômetro calculado */}
+                  {activeShift?.initialOdometer !== undefined && realTimeFuelCalc && (
+                    <div className="mt-1.5 text-[11px] text-slate-500 leading-snug space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-600 font-mono">Odo. inicial:</span>
+                        <span className="text-slate-400 font-mono font-bold">{activeShift.initialOdometer.toLocaleString('pt-BR')} KM</span>
+                      </div>
+                      {realTimeFuelCalc.kmPorPlataforma > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-600 font-mono">+ Plataformas (Uber/99):</span>
+                          <span className="text-slate-400 font-mono font-bold">+{realTimeFuelCalc.kmPorPlataforma.toFixed(1)} KM</span>
+                        </div>
+                      )}
+                      {realTimeFuelCalc.kmPorFora > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-600 font-mono">+ Corridas por fora:</span>
+                          <span className="text-slate-400 font-mono font-bold">+{realTimeFuelCalc.kmPorFora.toFixed(1)} KM</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 pt-0.5 border-t border-slate-800/60">
+                        <span className="text-amber-500/70 font-mono font-bold">= Estimado:</span>
+                        <span className="text-amber-400 font-mono font-black">{(activeShift.initialOdometer + realTimeFuelCalc.kmPorPlataforma + realTimeFuelCalc.kmPorFora).toLocaleString('pt-BR')} KM</span>
+                        <span className="text-slate-600 ml-1">— edite se divergir do marcador real</span>
+                      </div>
+                    </div>
+                  )}
+                  {!(activeShift?.initialOdometer !== undefined && realTimeFuelCalc) && (
+                    <span className="text-sm text-slate-500 block mt-1 leading-tight">
+                      Preenchido automaticamente com hodômetro inicial + km das plataformas + corridas por fora. Edite se o marcador real divergir.
+                    </span>
+                  )}
 
                   {/* REAL TIME CALCULATIONS & DYNAMIC GAUGE */}
                   {realTimeFuelCalc && (
@@ -2303,6 +2374,29 @@ export function QuickRegister({
                         <span>CÁLCULO EM TEMPO REAL</span>
                         <span className="text-[12px] text-amber-500 font-mono font-bold">ESTIMADO: {realTimeFuelCalc.consumption} KM/L</span>
                       </div>
+
+                      {/* Total km/L do turno inteiro */}
+                      {realTimeFuelCalc.kmPerLTotal !== undefined && (
+                        <div className="bg-emerald-500/8 border border-emerald-500/25 p-2.5 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[11px] text-slate-400 uppercase font-bold tracking-wider block">🏁 Consumo Real do Turno</span>
+                              <span className="text-[11px] text-slate-500 leading-none">
+                                {realTimeFuelCalc.distance.toFixed(1)} KM ÷ {realTimeFuelCalc.totalFuelConsumedEstimate.toFixed(2).replace('.', ',')} L consumidos
+                              </span>
+                            </div>
+                            <span className="text-white font-mono font-black text-[16px]">
+                              {realTimeFuelCalc.kmPerLTotal.toFixed(1).replace('.', ',')}
+                              <span className="text-emerald-400 text-[11px] font-bold ml-0.5">KM/L</span>
+                            </span>
+                          </div>
+                          {realTimeFuelCalc.previousRefuelLiters > 0 && (
+                            <p className="text-[11px] text-slate-500 mt-1 leading-tight">
+                              Inclui <strong className="text-white font-mono">{realTimeFuelCalc.previousRefuelLiters.toFixed(2).replace('.', ',')} L</strong> de abastecimentos anteriores neste turno.
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       {realTimeFuelCalc.actualConsumption !== undefined && (
                         <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-lg text-xs space-y-1">
