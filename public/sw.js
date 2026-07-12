@@ -1,56 +1,63 @@
-const CACHE_NAME = 'moob-caixa-v1';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'moob-caixa-v3';
+
+// Assets to pre-cache on install — only resources guaranteed to exist
+const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg',
-  '/icon.jpg'
+  '/manifest.json'
 ];
 
-// Install event: cache static assets
+// Install: pre-cache core assets individually (graceful — one failure won't abort install)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching static assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.allSettled(
+        PRECACHE_ASSETS.map(url =>
+          cache.add(url).catch(err => console.warn('[SW] Falha ao cachear:', url, err))
+        )
+      );
+      console.log('[SW] Instalado e pre-cache concluído.');
     }).then(() => self.skipWaiting())
   );
 });
 
-// Activate event: clean up old caches
+// Activate: limpa caches antigas e assume controle imediato
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Clearing old cache:', cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter(name => name !== CACHE_NAME)
+          .map(name => {
+            console.log('[SW] Removendo cache antiga:', name);
+            return caches.delete(name);
+          })
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
-// Fetch event: Network-First with Cache Fallback strategy
+// Fetch: Network-First com fallback para cache
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-  // Skip caching for non-GET requests or backend API requests
-  if (event.request.method !== 'GET' || url.pathname.startsWith('/moob-api/')) {
-    return; // Let the browser handle these normally via the network
+
+  // Passa direto para a rede: requisições não-GET, API, chrome-extension, etc.
+  if (
+    event.request.method !== 'GET' ||
+    url.pathname.startsWith('/moob-api/') ||
+    url.protocol === 'chrome-extension:'
+  ) {
+    return;
   }
 
-  // Network-First strategy: try the network first.
-  // If it succeeds, update the cache and return the response.
-  // If it fails (e.g. offline), fall back to the cache.
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Cache successful requests of type basic (same origin) or Google Fonts
-        const isGoogleFont = url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com');
-        if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 304) && (networkResponse.type === 'basic' || isGoogleFont)) {
+        // Atualiza cache para respostas bem-sucedidas da mesma origem
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          (networkResponse.type === 'basic' || networkResponse.type === 'cors')
+        ) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -59,12 +66,10 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        // Fallback to cache if network fails (offline)
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // If the request is for page navigation, fall back to the root '/'
+        // Offline: tenta o cache
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // Navegação sem rede: entrega o shell da SPA
           if (event.request.mode === 'navigate') {
             return caches.match('/');
           }
