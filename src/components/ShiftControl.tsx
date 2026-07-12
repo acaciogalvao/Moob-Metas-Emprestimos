@@ -974,129 +974,6 @@ export function ShiftControl({
           </div>
         </div>
 
-        {/* REFUELING SUGGESTION CARD */}
-        {refuelMetrics && (
-          <div className="bg-slate-950/45 p-3.5 rounded-xl border border-slate-800/85 mt-2 mb-2 hover:border-amber-500/20 transition-all shadow-lg">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 pb-3 border-b border-slate-900">
-              <div className="flex gap-2.5 items-start">
-                <span className="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl shrink-0">
-                  <Fuel className="w-4.5 h-4.5" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className="text-[14px] font-bold text-white uppercase tracking-wider">
-                      Sugestão de Abastecimento
-                    </h4>
-                    {refuelMetrics.isCurrentShift ? (
-                      <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-sm font-mono font-bold animate-pulse border border-emerald-500/15">
-                        ⚡ Tempo Real
-                      </span>
-                    ) : (
-                      <span className="px-1.5 py-0.5 bg-slate-900 text-slate-500 rounded text-sm font-mono border border-slate-800">
-                        📋 Histórico
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[12.5px] text-slate-400 mt-0.5 leading-relaxed">
-                    {refuelMetrics.isCurrentShift ? (
-                      <span>Calculado em tempo real sobre os KM rodados do <strong>turno vigente ativo</strong>.</span>
-                    ) : (
-                      <span>Calculado com base na sua rodagem média e eficiência de combustível. {refuelMetrics.hasKmData ? (
-                        <span>Utilizando dados de <strong>{refuelMetrics.shiftsWithOdoCount} caixas fechados</strong>.</span>
-                      ) : (
-                        <span className="text-amber-500/85">Dica: feche caixas registrando o odômetro para calibrar.</span>
-                      )}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons: Speedometer & Vehicle Toggle */}
-              <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
-                {/* Speedometer Toggle */}
-                <button
-                  onClick={() => {
-                    if (onToggleSpeedometer) onToggleSpeedometer();
-                  }}
-                  className={`px-2 py-1 rounded-md text-[12px] font-extrabold uppercase transition-all flex items-center gap-1 cursor-pointer ${
-                    isSpeedometerActive 
-                      ? 'bg-cyan-500/25 text-cyan-400 border border-cyan-500/35 hover:bg-cyan-500/35 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
-                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-                  }`}
-                  title="Ativar/desativar velocímetro flutuante"
-                >
-                  <span>⏱️</span> {isSpeedometerActive ? 'Velocímetro ON' : 'Velocímetro'}
-                </button>
-
-                {/* Vehicle Type Toggle */}
-                <button
-                  onClick={toggleFuelVehicleType}
-                  className="px-2 py-1 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 rounded-md text-[12px] font-extrabold uppercase flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>{fuelVehicleType === 'CARRO' ? '🚗' : '🏍️'}</span>
-                  {fuelVehicleType === 'CARRO' ? 'Carro' : 'Moto'}
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2">
-              {/* Med 1: KM Rodados ou Média de KM */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-slate-500 uppercase font-black tracking-wider leading-none">
-                  {refuelMetrics.isCurrentShift ? 'KM Rodados (Hoje)' : 'Média de KM/Turno'}
-                </span>
-                <span className="text-xs font-black font-mono text-white mt-1">
-                  {displayKm.toFixed(1).replace('.', ',')} km
-                </span>
-              </div>
-
-              {/* Med 2: Autonomia Média */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-slate-500 uppercase font-black tracking-wider leading-none">Consumo Médio</span>
-                <span className="text-xs font-black font-mono text-amber-500 mt-1">
-                  {displayAutonomy.toFixed(1).replace('.', ',')} km/L
-                </span>
-              </div>
-
-              {/* Med 3: Capacidade do Tanque */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-slate-500 uppercase font-black tracking-wider leading-none">Cap. do Tanque</span>
-                <span className="text-xs font-black font-mono text-slate-300 mt-1">
-                  {activeCapacity > 0 ? `${activeCapacity.toString().replace('.', ',')} litros` : '-- litros'}
-                </span>
-              </div>
-
-              {/* Med 4: Abastecimento Sugerido */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-emerald-400 uppercase font-black tracking-wider leading-none">
-                  {refuelMetrics.isCurrentShift ? 'Consumido (L)' : 'Litros Recomendados'}
-                </span>
-                <span className="text-xs font-black font-mono text-emerald-400 mt-1">
-                  {displayLiters.toFixed(1).replace('.', ',')} L
-                </span>
-              </div>
-
-              {/* Med 5: Custo Estimado */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-cyan-400 uppercase font-black tracking-wider leading-none">
-                  {refuelMetrics.isCurrentShift ? 'Custo Reposição' : 'Custo Estimado'}
-                </span>
-                <span className="text-xs font-black font-mono text-cyan-400 mt-1">
-                  {formatBRL(displayCost)}
-                </span>
-              </div>
-
-              {/* Med 6: Até Esvaziar */}
-              <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-850 flex flex-col justify-between">
-                <span className="text-sm text-rose-400 uppercase font-black tracking-wider leading-none">Até Esvaziar</span>
-                <span className={`text-xs font-black font-mono mt-1 ${remainingKm < activeConsumption * 2 ? 'text-rose-450 animate-pulse' : 'text-emerald-400'}`}>
-                  {refuelMetrics.isCurrentShift ? `${remainingKm.toFixed(0)} km` : '-- km'}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* PAINEL DE BORDO */}
         {activeShift && (
           <PainelBordo
@@ -1107,6 +984,9 @@ export function ShiftControl({
             totalKmRun={displayKmRun}
             remainingKm={remainingKm}
             vehicleType={fuelVehicleType}
+            onToggleVehicle={toggleFuelVehicleType}
+            fuelCostEstimate={displayCost}
+            fuelLitersConsumed={displayLiters}
           />
         )}
 

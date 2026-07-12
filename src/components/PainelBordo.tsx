@@ -12,6 +12,9 @@ interface PainelBordoProps {
   totalKmRun: number;             // km rodados (odômetro)
   remainingKm: number;            // km que ainda dá pra rodar com o combustível
   vehicleType: 'CARRO' | 'MOTO';
+  onToggleVehicle?: () => void;   // alterna entre Carro e Moto
+  fuelCostEstimate?: number;      // custo estimado de reposição (R$)
+  fuelLitersConsumed?: number;    // litros consumidos no turno
 }
 
 type GpsSignal = 'SEM_SINAL' | 'FRACO' | 'BOM' | 'EXCELENTE';
@@ -50,25 +53,27 @@ export function PainelBordo({
   totalKmRun,
   remainingKm,
   vehicleType,
+  onToggleVehicle,
+  fuelCostEstimate,
+  fuelLitersConsumed,
 }: PainelBordoProps) {
   const [isActive, setIsActive] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [gpsSignal, setGpsSignal] = useState<GpsSignal>('SEM_SINAL');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsKm, setGpsKm] = useState(0);
-  const [tick, setTick] = useState(0); // force re-render a cada segundo para atualizar horas/minutos
+  const [tick, setTick] = useState(0); // force re-render a cada segundo
 
   const gpsWatchRef = useRef<number | null>(null);
   const speedHistRef = useRef<number[]>([]);
   const lastCoordRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const currentSpeedRef = useRef(0);
 
-  // ── relógio interno ──────────────────────────────────────────────────────────
+  // ── relógio sempre ativo (independente do GPS) ───────────────────────────────
   useEffect(() => {
-    if (!isActive) return;
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
-  }, [isActive]);
+  }, []);
 
   // ── GPS ─────────────────────────────────────────────────────────────────────
   const startGPS = useCallback(() => {
@@ -211,16 +216,30 @@ export function PainelBordo({
             </span>
           )}
         </div>
-        <button
-          onClick={() => setIsActive(v => !v)}
-          className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-            isActive
-              ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
-              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-          }`}
-        >
-          {isActive ? '⏹ Desligar' : '▶ Ligar GPS'}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Botão veículo */}
+          {onToggleVehicle && (
+            <button
+              onClick={onToggleVehicle}
+              className="px-2.5 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-500 hover:text-white transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+              title="Alternar entre Carro e Moto"
+            >
+              <span>{vehicleType === 'CARRO' ? '🚗' : '🏍️'}</span>
+              {vehicleType === 'CARRO' ? 'Carro' : 'Moto'}
+            </button>
+          )}
+          {/* Botão GPS */}
+          <button
+            onClick={() => setIsActive(v => !v)}
+            className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+              isActive
+                ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
+                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+            }`}
+          >
+            {isActive ? '⏹ Desligar' : '▶ Ligar GPS'}
+          </button>
+        </div>
       </div>
 
       <div className="p-4">
@@ -397,25 +416,31 @@ export function PainelBordo({
               highlight={remainingKm > 0 && remainingKm < autonomyKmPerL * 2}
             />
 
-            {/* Veículo */}
+            {/* Litros consumidos no turno */}
             <MetricCard
-              icon={vehicleType === 'CARRO' ? '🚗' : '🏍️'}
-              label="Veículo"
-              value={vehicleType === 'CARRO' ? 'Carro' : 'Moto'}
+              icon="💧"
+              label="Consumido (L)"
+              value={
+                fuelLitersConsumed != null && fuelLitersConsumed > 0
+                  ? `${fuelLitersConsumed.toFixed(1).replace('.', ',')} L`
+                  : autonomyKmPerL > 0 && combinedKm > 0
+                    ? `${(combinedKm / autonomyKmPerL).toFixed(1).replace('.', ',')} L`
+                    : '-- L'
+              }
+              sub={combinedKm > 0 ? `em ${combinedKm.toFixed(1).replace('.', ',')} km` : undefined}
               color="slate"
             />
 
-            {/* KM por litro neste turno */}
+            {/* Custo de reposição */}
             <MetricCard
-              icon="💧"
-              label="Consumido"
+              icon="💰"
+              label="Custo Repor"
               value={
-                autonomyKmPerL > 0 && combinedKm > 0
-                  ? `${(combinedKm / autonomyKmPerL).toFixed(1).replace('.', ',')} L`
-                  : '-- L'
+                fuelCostEstimate != null && fuelCostEstimate > 0
+                  ? `R$ ${fuelCostEstimate.toFixed(2).replace('.', ',')}`
+                  : '-- '
               }
-              sub={combinedKm > 0 && autonomyKmPerL > 0 ? `em ${combinedKm.toFixed(1)} km` : undefined}
-              color="slate"
+              color="cyan"
             />
           </div>
         </div>
@@ -425,7 +450,7 @@ export function PainelBordo({
           <div className="mt-3 flex items-center gap-2 bg-slate-900/40 border border-slate-800/60 rounded-lg px-3 py-2">
             <span className="text-[13px]">ℹ️</span>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              Ligue o painel para ativar o velocímetro GPS em tempo real. As métricas de combustível e km já ficam visíveis sem GPS.
+              Toque em <strong className="text-emerald-400">▶ Ligar GPS</strong> para ativar o velocímetro em tempo real. Combustível e km já aparecem sem GPS.
             </p>
           </div>
         )}
