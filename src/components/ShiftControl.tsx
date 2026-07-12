@@ -903,6 +903,11 @@ export function ShiftControl({
               <p className="text-3xl font-black font-mono tracking-tight text-white">
                 R$ {formatDecimalBRL(expectedPocketCash + expectedPixBalance + uberBalance + ninetyNineBalance)}
               </p>
+              {/* Pix + Dinheiro destacado */}
+              <div className="mt-2 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-1.5">
+                <span className="text-[11px] text-emerald-400 font-bold uppercase tracking-wider whitespace-nowrap">💵⚡ Pix + Dinheiro</span>
+                <span className="font-mono font-black text-emerald-300 text-base">R$ {formatDecimalBRL(expectedPocketCash + expectedPixBalance)}</span>
+              </div>
               <p className="text-[12.5px] text-slate-400 mt-1.5 max-w-xl font-sans leading-relaxed">
                 Este é o saldo líquido total que você possui atualmente, somando o dinheiro físico no bolso, o saldo na conta Pix e os valores acumulados nos aplicativos de corrida.
               </p>
