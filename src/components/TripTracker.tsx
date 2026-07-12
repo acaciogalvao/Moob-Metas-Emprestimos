@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { playBeep, playCashRegister } from '../utils/audio';
 import { maskBRL, parseBRLInput, maskKM, parseKMInput } from '../utils/format';
+import { processGpsReading, gpsTrackerInit, type GpsTrackerState } from '../utils/gpsKalman';
 
 interface TripTrackerProps {
   activeShift: any;
@@ -168,11 +169,11 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
   const sliderThreshold = 180;
 
   // References
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const gpsWatchIdRef = useRef<number | null>(null);
+  const timerRef         = useRef<NodeJS.Timeout | null>(null);
+  const gpsWatchIdRef    = useRef<number | null>(null);
   const lastGpsCoordsRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
-  const speedHistoryRef = useRef<number[]>([]);
-  const wakeLockRef = useRef<any>(null);
+  const gpsStateRef      = useRef<GpsTrackerState>(gpsTrackerInit());
+  const wakeLockRef      = useRef<any>(null);
 
   // Screen Wake Lock API to prevent device from sleeping in active mode
   const requestWakeLock = async () => {
@@ -313,91 +314,44 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
           const { latitude, longitude, speed, accuracy } = position.coords;
           const now = position.timestamp || Date.now();
 
-          // Set GPS Accuracy and signal strength indicator based on accuracy margin
+          // Sinal GPS por faixa de precisão
           setGpsAccuracy(accuracy);
-          if (accuracy <= 15) {
-            setGpsSignalStrength('EXCELENTE');
-          } else if (accuracy <= 35) {
-            setGpsSignalStrength('BOM');
-          } else {
-            setGpsSignalStrength('FRACO');
-          }
+          if      (accuracy <= 15) setGpsSignalStrength('EXCELENTE');
+          else if (accuracy <= 35) setGpsSignalStrength('BOM');
+          else                     setGpsSignalStrength('FRACO');
 
-          let measuredSpeedKmH = 0;
-
-          // Standard velocity from the device GPS chip in meters/second
-          if (speed !== null && speed >= 0) {
-            measuredSpeedKmH = speed * 3.6;
-          }
-
-          let distanceMeters = 0;
+          // ── Acumula distância via Haversine (filtrado por precisão) ──────────
           if (lastGpsCoordsRef.current) {
             const prev = lastGpsCoordsRef.current;
-            
-            // Haversine formula to compute precise displacement in meters between coords
-            const R = 6371e3; // Earth radius in meters
+            const R_earth = 6371e3;
             const phi1 = (prev.lat * Math.PI) / 180;
-            const phi2 = (latitude * Math.PI) / 180;
-            const deltaPhi = ((latitude - prev.lat) * Math.PI) / 180;
-            const deltaLambda = ((longitude - prev.lng) * Math.PI) / 180;
-
+            const phi2 = (latitude  * Math.PI) / 180;
+            const dPhi = ((latitude  - prev.lat) * Math.PI) / 180;
+            const dLam = ((longitude - prev.lng) * Math.PI) / 180;
             const a =
-              Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-              Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            distanceMeters = R * c;
-
-            // Fallback speed calculation from delta time & displacement
-            if (speed === null || speed === undefined) {
-              const timeDiffSec = (now - prev.time) / 1000;
-              if (timeDiffSec > 0.5) {
-                const calculatedSpeedMs = distanceMeters / timeDiffSec;
-                measuredSpeedKmH = calculatedSpeedMs * 3.6;
-              }
-            }
-
-            // FILTER GPS ACCURACY JITTER & ACCUMULATE DISTANCE:
-            // 1. Accuracy must be <= 45 meters (reject highly noisy coordinates).
-            // 2. Ignore stationary speed jitter (speed < 1.8 km/h).
-            // 3. Reject physical anomalies (speed >= 200 km/h).
-            if (accuracy <= 45 && measuredSpeedKmH >= 1.8 && measuredSpeedKmH < 200) {
-              if (distanceMeters > 1.2 && distanceMeters < 500) {
-                setTripDistanceKm(prevDist => prevDist + (distanceMeters / 1000));
-              }
+              Math.sin(dPhi / 2) ** 2 +
+              Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+            const distM = R_earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            if (accuracy <= 45 && distM > 1.2 && distM < 500) {
+              setTripDistanceKm(prev => prev + distM / 1000);
             }
           }
 
-          // FILTER SPEED SIGNAL (O MAIS IMPORTANTE):
-          // - Standstill check (speed < 1.5 km/h is noise)
-          if (measuredSpeedKmH < 1.5) {
-            measuredSpeedKmH = 0;
-          }
+          // ── Filtro de Kalman + fusão + limitador de aceleração + EMA ────────
+          // (mesma lógica usada em apps como 99 e Uber)
+          const { speedKmh, state } = processGpsReading(gpsStateRef.current, {
+            latitude, longitude, speed, accuracy, timestamp: now,
+          });
+          gpsStateRef.current = state;
 
-          // - Ignore spikes: discard speeds above 200 km/h (ruído)
-          if (measuredSpeedKmH > 200) {
-            measuredSpeedKmH = currentSpeedRef.current;
-          }
-
-          // - Moving Average (Média Móvel): last 4 readings (perfect compromise between delay and smoothness)
-          const history = speedHistoryRef.current;
-          history.push(measuredSpeedKmH);
-          if (history.length > 4) {
-            history.shift();
-          }
-          const sum = history.reduce((acc, val) => acc + val, 0);
-          const smoothedSpeedKmh = Math.round(sum / history.length);
-
-          // Bound final speed display and save
-          const finalSpeed = Math.min(180, smoothedSpeedKmh);
+          const finalSpeed = Math.min(180, speedKmh);
           setCurrentSpeed(finalSpeed);
           currentSpeedRef.current = finalSpeed;
           lastGpsCoordsRef.current = { lat: latitude, lng: longitude, time: now };
 
-          // Direct sync rendering on canvas callback (background thread) to bypass background suspension
+          // Canvas direto para Picture-in-Picture (background thread)
           const canvas = canvasRef.current;
-          if (canvas) {
-            drawSpeedometerCanvas(canvas, finalSpeed);
-          }
+          if (canvas) drawSpeedometerCanvas(canvas, finalSpeed);
         },
         (err) => {
           console.warn('Trip Tracker Geolocation Error:', err);

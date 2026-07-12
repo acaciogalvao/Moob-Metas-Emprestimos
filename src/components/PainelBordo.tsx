@@ -3,6 +3,7 @@
  * Velocímetro GPS em tempo real + autonomia + km + horas + velocidade média
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { processGpsReading, gpsTrackerInit, type GpsTrackerState } from '../utils/gpsKalman';
 
 interface PainelBordoProps {
   activeShift: any;
@@ -64,10 +65,9 @@ export function PainelBordo({
   const [gpsKm, setGpsKm] = useState(0);
   const [tick, setTick] = useState(0); // force re-render a cada segundo
 
-  const gpsWatchRef = useRef<number | null>(null);
-  const speedHistRef = useRef<number[]>([]);
-  const lastCoordRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
-  const currentSpeedRef = useRef(0);
+  const gpsWatchRef   = useRef<number | null>(null);
+  const gpsStateRef   = useRef<GpsTrackerState>(gpsTrackerInit());
+  const lastCoordRef  = useRef<{ lat: number; lng: number; time: number } | null>(null);
 
   // ── relógio sempre ativo (independente do GPS) ───────────────────────────────
   useEffect(() => {
@@ -79,57 +79,49 @@ export function PainelBordo({
   const startGPS = useCallback(() => {
     if (!navigator.geolocation) return;
     lastCoordRef.current = null;
-    speedHistRef.current = [];
+    gpsStateRef.current  = gpsTrackerInit();
 
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, speed, accuracy } = pos.coords;
         const now = pos.timestamp ?? Date.now();
 
+        // Sinal GPS por precisão (metros)
         setGpsAccuracy(accuracy);
-        if (accuracy <= 15) setGpsSignal('EXCELENTE');
+        if      (accuracy <= 15) setGpsSignal('EXCELENTE');
         else if (accuracy <= 35) setGpsSignal('BOM');
         else if (accuracy <= 55) setGpsSignal('FRACO');
-        else setGpsSignal('SEM_SINAL');
+        else                     setGpsSignal('SEM_SINAL');
 
-        let kmh = speed != null && speed >= 0 ? speed * 3.6 : 0;
-
+        // ── Acumula distância via Haversine (independente do Kalman) ──────────
         if (lastCoordRef.current) {
           const prev = lastCoordRef.current;
           const R_earth = 6371e3;
           const phi1 = (prev.lat * Math.PI) / 180;
-          const phi2 = (latitude * Math.PI) / 180;
-          const dPhi = ((latitude - prev.lat) * Math.PI) / 180;
+          const phi2 = (latitude  * Math.PI) / 180;
+          const dPhi = ((latitude  - prev.lat) * Math.PI) / 180;
           const dLam = ((longitude - prev.lng) * Math.PI) / 180;
           const a =
             Math.sin(dPhi / 2) ** 2 +
             Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
           const distM = R_earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-          if (speed == null) {
-            const dt = (now - prev.time) / 1000;
-            if (dt > 0.5) kmh = (distM / dt) * 3.6;
-          }
-
-          if (accuracy <= 45 && kmh >= 1.8 && kmh < 200 && distM > 1.2 && distM < 500) {
+          // Filtra jitter: só conta se accuracia boa e deslocamento crível
+          if (accuracy <= 45 && distM > 1.2 && distM < 500) {
             setGpsKm(k => k + distM / 1000);
           }
         }
 
-        if (kmh < 1.5) kmh = 0;
-        if (kmh > 200) kmh = currentSpeedRef.current;
+        // ── Filtro de Kalman + fusão + limitador de aceleração + EMA ─────────
+        const { speedKmh, state } = processGpsReading(gpsStateRef.current, {
+          latitude, longitude, speed, accuracy, timestamp: now,
+        });
+        gpsStateRef.current = state;
 
-        const hist = speedHistRef.current;
-        hist.push(kmh);
-        if (hist.length > 4) hist.shift();
-        const smoothed = Math.round(hist.reduce((a, b) => a + b, 0) / hist.length);
-        const final = Math.min(MAX_SPEED, smoothed);
-        setCurrentSpeed(final);
-        currentSpeedRef.current = final;
+        setCurrentSpeed(Math.min(MAX_SPEED, speedKmh));
         lastCoordRef.current = { lat: latitude, lng: longitude, time: now };
       },
       () => setGpsSignal('SEM_SINAL'),
-      { enableHighAccuracy: true, timeout: 2500, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 2500, maximumAge: 0 },
     );
   }, []);
 
