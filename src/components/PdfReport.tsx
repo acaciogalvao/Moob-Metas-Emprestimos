@@ -145,6 +145,12 @@ export function PdfReport({ shift, onClose, vehicleType = 'CAR', operatorName }:
   const kmPerL = hasBothOdo && fuelLitersUsed > 0 ? (kmRun / fuelLitersUsed) : undefined;
   const litersPerKm = hasBothOdo && fuelLitersUsed > 0 ? (fuelLitersUsed / kmRun) : undefined;
 
+  // Tank capacity (configured per vehicle type) & how many liters are missing to top off the tank
+  const tankCapacity = parseFloat(localStorage.getItem(vehicleType === 'CAR' ? 'moob_fuel_car_capacity' : 'moob_fuel_moto_capacity') || '0');
+  const litersToFillTank = shift.finalFuelLiters !== undefined && tankCapacity > 0
+    ? Math.max(0, tankCapacity - finalFuelLiters)
+    : undefined;
+
   // Platform App Fees Calculations
   const totalRidesWithPass = rides.filter(t => t.passengerValue !== undefined || t.appOfferValue !== undefined);
   
@@ -624,6 +630,12 @@ export function PdfReport({ shift, onClose, vehicleType = 'CAR', operatorName }:
         <span>${litersPerKm.toFixed(4)} L/km</span>
       </div>
       ` : ''}
+      ${litersToFillTank !== undefined ? `
+      <div class="flex-between font-bold" style="color: #0e7490; margin-top: 4px; border-top: 1px dashed #ccc; padding-top: 4px;">
+        <span>Faltam p/ Completar Tanque:</span>
+        <span>${litersToFillTank.toFixed(2).replace('.', ',')} L (de ${tankCapacity.toFixed(0)} L)</span>
+      </div>
+      ` : ''}
     </div>
     ` : ''}
     
@@ -676,7 +688,7 @@ export function PdfReport({ shift, onClose, vehicleType = 'CAR', operatorName }:
 • Hodômetro Final (Saída): ${shift.finalOdometer !== undefined ? formatOdometer(shift.finalOdometer) + ' KM' : 'Não informado'}${shift.finalFuelLiters !== undefined ? `\n• Tanque Final (Fechamento): ${shift.finalFuelLiters.toFixed(3).replace('.', ',')} L (${shift.finalFuelLevel || 'Meio Tanque'})` : ''}
 ${hasBothOdo ? `• Distância Total (Odômetro): ${kmRun.toFixed(2)} KM\n` : ''}• KM na Plataforma Uber: ${uberKM.toFixed(2)} KM
 • KM na Plataforma 99: ${ninetyNineKM.toFixed(2)} KM
-• KM Fora das Plataformas: ${particularKM.toFixed(2)} KM${shift.totalLitersFueled !== undefined && shift.totalLitersFueled > 0 ? `\n• Combustível Abastecido: ${shift.totalLitersFueled.toString()} L` : ''}${hasBothFuelLevels ? `\n• Combustível Consumido (Total): ${fuelLitersUsed.toFixed(3).replace('.', ',')} L` : ''}${kmPerL !== undefined ? `\n• Eficiência (KM/L): ${kmPerL.toFixed(2)} km/L` : ''}${litersPerKm !== undefined ? `\n• Consumo por KM: ${litersPerKm.toFixed(4)} L/km` : ''}
+• KM Fora das Plataformas: ${particularKM.toFixed(2)} KM${shift.totalLitersFueled !== undefined && shift.totalLitersFueled > 0 ? `\n• Combustível Abastecido: ${shift.totalLitersFueled.toString()} L` : ''}${hasBothFuelLevels ? `\n• Combustível Consumido (Total): ${fuelLitersUsed.toFixed(3).replace('.', ',')} L` : ''}${kmPerL !== undefined ? `\n• Eficiência (KM/L): ${kmPerL.toFixed(2)} km/L` : ''}${litersPerKm !== undefined ? `\n• Consumo por KM: ${litersPerKm.toFixed(4)} L/km` : ''}${litersToFillTank !== undefined ? `\n• Faltam p/ Completar Tanque: ${litersToFillTank.toFixed(2).replace('.', ',')} L (de ${tankCapacity.toFixed(0)} L)` : ''}
 ----------------------------------------`
       : '';
 
@@ -1345,6 +1357,12 @@ _Obrigado por dirigir com segurança!_`;
                   <div className="flex justify-between text-[12px] text-zinc-500">
                     <span>Média Litro por KM:</span>
                     <span>{litersPerKm.toFixed(4)} L/km</span>
+                  </div>
+                )}
+                {litersToFillTank !== undefined && (
+                  <div className="flex justify-between font-bold text-cyan-700 mt-1 pt-1 border-t border-dashed border-zinc-200">
+                    <span>Faltam p/ Completar Tanque:</span>
+                    <span>{litersToFillTank.toFixed(2).replace('.', ',')} L (de {tankCapacity.toFixed(0)} L)</span>
                   </div>
                 )}
               </div>
