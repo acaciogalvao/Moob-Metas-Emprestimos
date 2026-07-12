@@ -2638,51 +2638,53 @@ export function QuickRegister({
               </div>
             </div>
           ) : (
-            <div className="mt-4 pt-3.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="flex items-center gap-1 text-[12.5px] font-extrabold text-slate-400 uppercase tracking-widest">
-                    <MapPin className="w-3 h-3 text-slate-500" />
-                    Quilometragem (KM)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsKmCalcOpen(true);
-                      playBeep();
+            txType !== 'FUEL' && (
+              <div className="mt-4 pt-3.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="flex items-center gap-1 text-[12.5px] font-extrabold text-slate-400 uppercase tracking-widest">
+                      <MapPin className="w-3 h-3 text-slate-500" />
+                      Quilometragem (KM)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsKmCalcOpen(true);
+                        playBeep();
+                      }}
+                      className="flex items-center gap-0.5 text-[12.5px] font-black text-amber-500 hover:text-amber-400 transition-colors bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/20"
+                    >
+                      <Calculator className="w-2.5 h-2.5" />
+                      Calcular KM
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={platform === 'UBER' ? "Ex: 8,50" : "Ex: 8,5"}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-white text-sm font-mono focus:border-slate-600 focus:outline-none"
+                    value={km}
+                    onChange={(e) => {
+                      const masked = maskKM(e.target.value, decimals);
+                      setKm(masked);
                     }}
-                    className="flex items-center gap-0.5 text-[12.5px] font-black text-amber-500 hover:text-amber-400 transition-colors bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/20"
-                  >
-                    <Calculator className="w-2.5 h-2.5" />
-                    Calcular KM
-                  </button>
+                  />
                 </div>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder={platform === 'UBER' ? "Ex: 8,50" : "Ex: 8,5"}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-white text-sm font-mono focus:border-slate-600 focus:outline-none"
-                  value={km}
-                  onChange={(e) => {
-                    const masked = maskKM(e.target.value, decimals);
-                    setKm(masked);
-                  }}
-                />
+                <div>
+                  <label className="flex items-center gap-1 text-[12.5px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
+                    <MessageSquare className="w-3 h-3 text-slate-500" />
+                    Descrição / Notas
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Ducha expressa Posto"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-white text-sm focus:border-slate-600 focus:outline-none"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="flex items-center gap-1 text-[12.5px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                  <MessageSquare className="w-3 h-3 text-slate-500" />
-                  Descrição / Notas
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Ducha expressa Posto"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-white text-sm focus:border-slate-600 focus:outline-none"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-            </div>
+            )
           )}
         </div>
 
