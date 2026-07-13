@@ -39,6 +39,8 @@ interface ShiftControlProps {
   excludeSundays?: boolean;
   onToggleExcludeSundays?: () => void;
   draftFuelLiters?: number;
+  /** Nível do tanque recalculado em tempo real pelo QuickRegister ao digitar o hodômetro no abastecimento. */
+  liveFuelLevel?: number | null;
   // GPS do turno (auto-ativo quando caixa aberto, via useShiftGPS)
   gpsSpeedKmh?: number;
   gpsShiftKm?: number;
@@ -61,6 +63,7 @@ export function ShiftControl({
   onUpdateActiveShift,
   refuelMetrics,
   draftFuelLiters = 0,
+  liveFuelLevel = null,
   excludeSundays: propsExcludeSundays,
   onToggleExcludeSundays,
   gpsSpeedKmh,
@@ -848,10 +851,15 @@ export function ShiftControl({
   
   const remainingKm = activeConsumption > 0 ? currentFuelLiters * activeConsumption : 0;
 
-  // Live preview: while the user is typing liters into the refuel field in QuickRegister (even before
-  // saving the transaction), reflect that amount on the dashboard gauge's needle/percentage/label only.
+  // Live preview: while the user is typing in the refuel form in QuickRegister, update the gauge.
+  // Priority: if the driver typed an odometer, use the recalculated level (liveFuelLevel) which
+  // already accounts for km driven off-app. Otherwise fall back to currentFuelLiters + draftFuelLiters.
   const gaugeFuelLiters = activeCapacity > 0
-    ? Math.max(0, Math.min(activeCapacity, currentFuelLiters + (draftFuelLiters || 0)))
+    ? Math.max(0, Math.min(activeCapacity,
+        liveFuelLevel !== null && liveFuelLevel !== undefined
+          ? liveFuelLevel + (draftFuelLiters || 0)
+          : currentFuelLiters + (draftFuelLiters || 0)
+      ))
     : currentFuelLiters;
 
   const totalKmOdometerCalibrated = (lastCalibratedOdo !== undefined && activeShift && activeShift.initialOdometer !== undefined)

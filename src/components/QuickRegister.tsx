@@ -137,6 +137,9 @@ interface QuickRegisterProps {
   excludeSundays?: boolean;
   onToggleExcludeSundays?: (val: boolean) => void;
   onDraftFuelLitersChange?: (liters: number) => void;
+  /** Callback chamado em tempo real com o nível atual do tanque (litros) conforme o motorista digita o
+   *  hodômetro no form de abastecimento. Permite que o PainelBordo atualize o ponteiro sem salvar. */
+  onLiveFuelLevelChange?: (liters: number | null) => void;
 }
 
 export function QuickRegister({ 
@@ -149,7 +152,8 @@ export function QuickRegister({
   onGoToViagem,
   excludeSundays: propsExcludeSundays,
   onToggleExcludeSundays,
-  onDraftFuelLitersChange
+  onDraftFuelLitersChange,
+  onLiveFuelLevelChange
 }: QuickRegisterProps) {
   // Local fallback state if not provided as props
   const [localExcludeSundays, setLocalExcludeSundays] = useState<boolean>(() => {
@@ -542,6 +546,19 @@ export function QuickRegister({
     const isFuelContext = txType === 'FUEL' || (txType === 'OUT' && expenseCategory === 'COMBUSTIVEL');
     onDraftFuelLitersChange(isFuelContext ? parseFuelLiters(fuelLiters) : 0);
   }, [fuelLiters, txType, expenseCategory, onDraftFuelLitersChange]);
+
+  // Envia o nível atual recalculado (fuelBeforeRefuel) para o PainelBordo sempre que o motorista
+  // digita o hodômetro no form de abastecimento — assim o ponteiro se move em tempo real.
+  useEffect(() => {
+    if (!onLiveFuelLevelChange) return;
+    const isFuelContext = txType === 'FUEL' || (txType === 'OUT' && expenseCategory === 'COMBUSTIVEL');
+    if (isFuelContext && realTimeFuelCalc && fuelOdometerInput) {
+      onLiveFuelLevelChange(realTimeFuelCalc.fuelBeforeRefuel);
+    } else {
+      onLiveFuelLevelChange(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realTimeFuelCalc?.fuelBeforeRefuel, fuelOdometerInput, txType, expenseCategory, onLiveFuelLevelChange]);
 
   // Clear the draft liters when this component unmounts (e.g. tab switch) so the gauge doesn't get stuck.
   useEffect(() => {

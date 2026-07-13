@@ -72,6 +72,7 @@ export default function App() {
     return localStorage.getItem('moob_caixa_exclude_sundays') === 'true';
   });
   const [draftFuelLiters, setDraftFuelLiters] = useState<number>(0);
+  const [liveFuelLevel, setLiveFuelLevel] = useState<number | null>(null);
 
   // --- CONFIRM DIALOG ---
   const { confirmDialog, setConfirmDialog } = useConfirmDialog();
@@ -295,6 +296,7 @@ export default function App() {
                       excludeSundays={excludeSundays}
                       onToggleExcludeSundays={setExcludeSundays}
                       onDraftFuelLitersChange={setDraftFuelLiters}
+                      onLiveFuelLevelChange={setLiveFuelLevel}
                     />
                   </div>
 
@@ -318,6 +320,7 @@ export default function App() {
                       onUpdateActiveShift={handleUpdateActiveShift}
                       refuelMetrics={refuelMetrics}
                       draftFuelLiters={draftFuelLiters}
+                      liveFuelLevel={liveFuelLevel}
                       excludeSundays={excludeSundays}
                       onToggleExcludeSundays={() => {
                         const nextVal = !excludeSundays;
