@@ -1,0 +1,81 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Comando "moob" — inicia o MoobFinance no Termux e abre no navegador.
+#
+# Uso:
+#   moob            -> modo "produção sem build" (padrão: estável, sem precisar buildar)
+#   moob dev        -> modo dev (HMR ativo, para quando você for editar código)
+#   moob build      -> modo produção com build (roda "npm run build" e depois serve dist/)
+#
+# Instalação (uma vez só), dentro do Termux:
+#   cd ~/desenvolvimento/Moob-Metas-Emprestimos
+#   chmod +x scripts/moob
+#   ln -sf "$PWD/scripts/moob" "$PREFIX/bin/moob"
+#
+# Depois disso, basta digitar "moob" em qualquer lugar do Termux.
+
+set -e
+
+PROJECT_DIR="$HOME/desenvolvimento/Moob-Metas-Emprestimos"
+PORT="${PORT:-5000}"
+MODE="${1:-nobuild}"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+  echo "❌ Pasta do projeto não encontrada em: $PROJECT_DIR"
+  echo "   Clone o repositório nesse caminho antes de usar o comando moob."
+  exit 1
+fi
+
+cd "$PROJECT_DIR"
+
+if [ ! -d "node_modules" ]; then
+  echo "📦 Instalando dependências (primeira vez)..."
+  npm install
+fi
+
+SERVER_PID=""
+cleanup() {
+  if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null
+  fi
+  exit 0
+}
+trap cleanup INT TERM
+
+case "$MODE" in
+  dev)
+    echo "🚀 Iniciando MoobFinance em modo DEV (HMR ativo) na porta $PORT..."
+    PORT="$PORT" npm run dev &
+    SERVER_PID=$!
+    ;;
+  build)
+    echo "🔨 Buildando MoobFinance..."
+    npm run build
+    echo "🚀 Iniciando MoobFinance em modo PRODUÇÃO (build) na porta $PORT..."
+    PORT="$PORT" npm start &
+    SERVER_PID=$!
+    ;;
+  nobuild|*)
+    echo "🚀 Iniciando MoobFinance em modo PRODUÇÃO SEM BUILD na porta $PORT..."
+    DISABLE_HMR=true PORT="$PORT" node --import tsx server.ts &
+    SERVER_PID=$!
+    ;;
+esac
+
+echo "⏳ Aguardando o servidor responder..."
+for i in $(seq 1 30); do
+  if curl -s -o /dev/null "http://localhost:$PORT/"; then
+    break
+  fi
+  sleep 1
+done
+
+URL="http://localhost:$PORT/"
+if command -v termux-open-url >/dev/null 2>&1; then
+  echo "🌐 Abrindo $URL no navegador..."
+  termux-open-url "$URL"
+else
+  echo "🌐 Servidor pronto! Abra manualmente: $URL"
+  echo "   (Instale 'pkg install termux-api' + o app Termux:API para abrir automático.)"
+fi
+
+wait "$SERVER_PID"

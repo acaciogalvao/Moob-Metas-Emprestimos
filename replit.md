@@ -14,6 +14,27 @@ The project supports three run modes, each with a matching workflow and npm scri
 
 Only one of the three can run at a time (all bind port 5000) — stop the current workflow before starting another.
 
+## Running on Termux (comando `moob`)
+`scripts/moob` é um script pronto para rodar o app pelo Termux com um único comando.
+
+**Instalação (uma vez só) no Termux**, com o repositório clonado em `~/desenvolvimento/Moob-Metas-Emprestimos`:
+```
+cd ~/desenvolvimento/Moob-Metas-Emprestimos
+chmod +x scripts/moob
+ln -sf "$PWD/scripts/moob" "$PREFIX/bin/moob"
+```
+
+**Uso, de qualquer lugar do Termux:**
+```
+moob            # modo produção sem build (padrão — estável, sem precisar buildar)
+moob dev        # modo dev (HMR ativo, para editar código)
+moob build      # modo produção com build (roda "npm run build" e depois serve dist/)
+```
+O script entra na pasta do projeto, instala dependências se faltar `node_modules`, inicia o servidor na
+porta 5000 e abre `http://localhost:5000/` automaticamente via `termux-open-url` (requer o app Termux:API
++ `pkg install termux-api`; sem isso, ele só imprime o endereço para abrir manualmente). Ctrl+C encerra o
+servidor.
+
 ## Required secrets
 | Secret | Purpose | Status |
 |--------|---------|--------|
