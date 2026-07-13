@@ -124,7 +124,12 @@ async function start() {
   // Realiza migrações da coleção se houver dados legados
   await migrateGoalsCollection();
 
-  // Middleware do Vite para desenvolvimento local
+  // Três modos de execução (ver scripts em package.json):
+  //  - "dev"              (npm run dev)          -> Vite middleware + HMR ativo. Ideal para editar código.
+  //  - "start:no-build"   (npm run start:no-build) -> Vite middleware servindo o código-fonte direto, mas com HMR
+  //                                                   desativado (sem full-reload ao perder o socket em segundo
+  //                                                   plano no celular/PWA). Não precisa rodar build antes.
+  //  - "start" (produção) (npm run build && npm start) -> Serve os arquivos estáticos já buildados em dist/.
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({

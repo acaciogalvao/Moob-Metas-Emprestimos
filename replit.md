@@ -4,10 +4,15 @@
 A unified financial platform for rideshare drivers (Uber/99). Features cash-flow tracking per shift, earnings reporting, and a peer goal/lending system between driver partners. Built with React + Vite on the frontend, Express + TypeScript on the backend, MongoDB for persistence, Gemini AI for insights, and Mercado Pago for payments.
 
 ## How to run
-```
-npm run dev
-```
-Starts the Express server (with Vite middleware in dev mode) on port 5000.
+The project supports three run modes, each with a matching workflow and npm script:
+
+| Mode | Workflow | Command | Behavior |
+|------|----------|---------|----------|
+| Dev | `Start application` | `npm run dev` | Vite middleware + HMR ativo. Reload automático ao editar código; é o modo padrão usado no preview. |
+| Produção sem build | `Start (Producao sem build)` | `npm run start:no-build` | Vite middleware servindo o código-fonte direto, mas com HMR **desligado** — sem full-reload ao perder o socket em segundo plano no celular/PWA. Não precisa buildar antes, então pega mudanças de código imediatamente ao reiniciar. |
+| Produção (build) | `Start (Producao build)` | `npm run build && npm start` | Serve os arquivos já compilados em `dist/`. Mais rápido/estável para uso diário, mas exige rodar o build a cada mudança de código. |
+
+Only one of the three can run at a time (all bind port 5000) — stop the current workflow before starting another.
 
 ## Required secrets
 | Secret | Purpose | Status |
