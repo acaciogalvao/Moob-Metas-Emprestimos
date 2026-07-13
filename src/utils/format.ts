@@ -203,9 +203,11 @@ export function getPlatformBalanceDelta(tx: {
     const fee = passenger - offer;
 
     if (tx.paymentMethod === 'APP') {
-      // Paid via App: main ride value goes to Pix/Cash balance (tracked separately).
-      // Only tips and cancellations accumulate in the platform wallet balance.
-      delta = 0;
+      // Paid "Direto no App": the value offered by the app (appOfferValue) is credited
+      // straight into the platform's virtual wallet (Saldo do App). Any extra amount typed
+      // on the calculator beyond the offer is charged separately to Pix/Dinheiro (handled
+      // via extraChargedValue/extraPaymentMethod in computeFinancialTotals), not the wallet.
+      delta = offer;
     } else {
       // Paid directly to driver in cash/pix/card (driver gets the passenger's money directly)
       // Driver owes the platform fee to the app, so the app fee is deducted from the wallet balance.
