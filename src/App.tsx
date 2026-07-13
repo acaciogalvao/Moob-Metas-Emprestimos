@@ -14,6 +14,7 @@ import { Charts } from './components/Charts';
 import { PdfReport } from './components/PdfReport';
 import { TripTracker } from './components/TripTracker';
 import { LoanSystemApp } from './components/LoanSystemApp';
+import { OficinaApp } from './components/OficinaApp';
 import { AppNavbar } from './components/AppNavbar';
 import { SystemTabsNav } from './components/SystemTabsNav';
 import { HistoricoCaixasView } from './components/HistoricoCaixasView';
@@ -55,8 +56,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'ANALYTICS'>(() => {
     return (localStorage.getItem('moob_active_tab') as 'REGISTER' | 'ANALYTICS') || 'REGISTER';
   });
-  const [systemTab, setSystemTab] = useState<'caixa' | 'historico' | 'viagem' | 'metas'>(() => {
-    return (localStorage.getItem('moob_system_tab') as 'caixa' | 'historico' | 'viagem' | 'metas') || 'caixa';
+  const [systemTab, setSystemTab] = useState<'caixa' | 'historico' | 'viagem' | 'metas' | 'oficina'>(() => {
+    return (localStorage.getItem('moob_system_tab') as 'caixa' | 'historico' | 'viagem' | 'metas' | 'oficina') || 'caixa';
   });
 
   useEffect(() => {
@@ -197,7 +198,21 @@ export default function App() {
         {/* UNIFIED SYSTEM TABS (MoobFinance) */}
         <SystemTabsNav systemTab={systemTab} onSetSystemTab={setSystemTab} />
 
-        {systemTab === 'historico' ? (
+        {systemTab === 'oficina' ? (
+          <motion.div
+            key="oficina-system"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2 }}
+          >
+            <OficinaApp
+              activeShift={activeShift}
+              shifts={shifts}
+              onAddTransaction={handleAddTransaction}
+            />
+          </motion.div>
+        ) : systemTab === 'historico' ? (
           <HistoricoCaixasView
             shifts={shifts}
             driverName={driverName}

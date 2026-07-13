@@ -3,12 +3,12 @@
  */
 
 import React from 'react';
-import { Coins, FolderArchive, Target } from 'lucide-react';
+import { Coins, FolderArchive, Target, Wrench } from 'lucide-react';
 import { playBeep } from '../utils/audio';
 
 interface SystemTabsNavProps {
-  systemTab: 'caixa' | 'historico' | 'viagem' | 'metas';
-  onSetSystemTab: (tab: 'caixa' | 'historico' | 'viagem' | 'metas') => void;
+  systemTab: 'caixa' | 'historico' | 'viagem' | 'metas' | 'oficina';
+  onSetSystemTab: (tab: 'caixa' | 'historico' | 'viagem' | 'metas' | 'oficina') => void;
 }
 
 export function SystemTabsNav({ systemTab, onSetSystemTab }: SystemTabsNavProps) {
@@ -34,7 +34,7 @@ export function SystemTabsNav({ systemTab, onSetSystemTab }: SystemTabsNavProps)
         }`}
       >
         <FolderArchive className="w-3.5 h-3.5" />
-        Caixas Fechados
+        Histórico
       </button>
       <button
         onClick={() => { playBeep(); onSetSystemTab('metas'); }}
@@ -45,7 +45,18 @@ export function SystemTabsNav({ systemTab, onSetSystemTab }: SystemTabsNavProps)
         }`}
       >
         <Target className="w-3.5 h-3.5" />
-        Metas & Empréstimo
+        Metas
+      </button>
+      <button
+        onClick={() => { playBeep(); onSetSystemTab('oficina'); }}
+        className={`flex-1 py-2.5 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          systemTab === 'oficina'
+            ? 'bg-orange-500 text-slate-950 shadow-md shadow-orange-500/10 font-black'
+            : 'text-slate-400 hover:text-white'
+        }`}
+      >
+        <Wrench className="w-3.5 h-3.5" />
+        Oficina
       </button>
     </div>
   );
