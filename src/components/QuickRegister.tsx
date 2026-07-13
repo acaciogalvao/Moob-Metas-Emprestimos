@@ -381,49 +381,44 @@ export function QuickRegister({
     : (parseFloat(openingConsumption.replace(',', '.')) || (vehicleType === 'CAR' ? 12 : 35));
 
   // --- INTER-SHIFT ODOMETER & FUEL CALCULATION ---
-  // Dados do último caixa fechado para referência ao abrir novo turno
+  // Calcula combustível restante e quanto falta para encher o tanque ao abrir novo caixa
   const interShiftMetrics = (() => {
     if (!lastClosedShift) return null;
     const prevFinalOdo = lastClosedShift.finalOdometer;
     const prevFinalFuelLiters = lastClosedShift.finalFuelLiters;
+    if (!prevFinalFuelLiters || prevFinalFuelLiters <= 0) return { prevFinalOdo, prevFinalFuelLiters: undefined };
+
     const avgKmL = parseFloat(openingConsumption.replace(',', '.')) || (vehicleType === 'CAR' ? 12 : 35);
+    const capacity = parseFloat(openingCapacity.replace(',', '.')) || (vehicleType === 'CAR' ? 50 : 12);
     const newOdo = parseOdometerInput(startingOdometerInput);
     const hasNewOdo = !isNaN(newOdo) && newOdo > 0;
 
-    // km rodados entre o fechamento do último caixa e a abertura do novo
+    // km rodados entre o fechamento e a abertura do novo caixa
     const kmBetween = (prevFinalOdo && hasNewOdo && newOdo > prevFinalOdo)
       ? newOdo - prevFinalOdo : null;
 
-    // combustível consumido entre os caixas
+    // combustível consumido entre os caixas (pelo km percorrido)
     const fuelConsumedBetween = (kmBetween !== null && avgKmL > 0)
       ? kmBetween / avgKmL : null;
 
-    // combustível estimado restante no início do novo turno
-    const estimatedRemainingFuel = (prevFinalFuelLiters !== undefined && prevFinalFuelLiters > 0 && fuelConsumedBetween !== null)
-      ? Math.max(0, prevFinalFuelLiters - fuelConsumedBetween) : null;
+    // litros restantes no tanque agora (sem abastecer)
+    const litersNow = fuelConsumedBetween !== null
+      ? Math.max(0, prevFinalFuelLiters - fuelConsumedBetween)
+      : prevFinalFuelLiters; // sem novo hodômetro: usa o valor do fechamento
 
-    // km até o próximo abastecimento a partir do combustível estimado restante
-    const kmUntilRefuelEstimated = (estimatedRemainingFuel !== null)
-      ? estimatedRemainingFuel * avgKmL : null;
+    // litros necessários para encher o tanque
+    const litersToFill = Math.max(0, capacity - litersNow);
 
     return {
       prevFinalOdo,
       prevFinalFuelLiters,
       kmBetween,
       fuelConsumedBetween,
-      estimatedRemainingFuel,
-      kmUntilRefuelEstimated,
+      litersNow,
+      litersToFill,
+      capacity,
       avgKmL,
     };
-  })();
-
-  // km até o próximo abastecimento baseado no combustível configurado no formulário de abertura
-  const kmUntilRefuelFromForm = (() => {
-    if (activeShift) return null; // só mostra no formulário de abertura
-    const avgKmL = parseFloat(openingConsumption.replace(',', '.')) || (vehicleType === 'CAR' ? 12 : 35);
-    const liters = startingFuelLitersInput ? parseFuelLiters(startingFuelLitersInput) : 0;
-    if (liters <= 0 || avgKmL <= 0) return null;
-    return liters * avgKmL;
   })();
 
   const realTimeFuelCalc = (() => {
@@ -1164,53 +1159,49 @@ export function QuickRegister({
               </div>
               <span className="text-[12.5px] text-amber-500 font-bold block mt-0.5">* Obrigatório. Permite calcular KM totais e consumo no fechamento.</span>
 
-              {/* Painel inter-turno: km rodados entre caixas + estimativa de combustível */}
-              {interShiftMetrics && interShiftMetrics.kmBetween !== null && (
-                <div className="mt-2 bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between text-[13px]">
-                    <span className="text-slate-400 font-bold flex items-center gap-1">🛣️ KM desde fechamento</span>
-                    <span className="font-black text-white font-mono">{interShiftMetrics.kmBetween.toLocaleString('pt-BR')} km</span>
+              {/* Painel inter-turno: litros no tanque e quanto falta para encher */}
+              {interShiftMetrics && interShiftMetrics.prevFinalFuelLiters !== undefined && (
+                <div className="mt-2 bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 space-y-2.5">
+                  <p className="text-[11.5px] font-black text-slate-500 uppercase tracking-widest">⛽ Combustível — referência do último caixa</p>
+
+                  {/* Sem abastecer */}
+                  <div className={`flex items-center justify-between rounded-lg px-3 py-2 border ${
+                    interShiftMetrics.litersNow < 5
+                      ? 'bg-rose-950/40 border-rose-800/50'
+                      : interShiftMetrics.litersNow < 10
+                      ? 'bg-amber-950/40 border-amber-800/50'
+                      : 'bg-slate-800/60 border-slate-700/50'
+                  }`}>
+                    <span className="text-[13px] font-bold text-slate-300">Se sair sem abastecer</span>
+                    <span className={`text-[15px] font-black font-mono ${
+                      interShiftMetrics.litersNow < 5 ? 'text-rose-400'
+                      : interShiftMetrics.litersNow < 10 ? 'text-amber-400'
+                      : 'text-white'
+                    }`}>
+                      {interShiftMetrics.litersNow.toFixed(2).replace('.', ',')} L
+                    </span>
                   </div>
-                  {interShiftMetrics.fuelConsumedBetween !== null && (
-                    <div className="flex items-center justify-between text-[13px]">
-                      <span className="text-slate-400 font-bold flex items-center gap-1">⛽ Combustível consumido</span>
-                      <span className="font-black text-amber-400 font-mono">
-                        {interShiftMetrics.fuelConsumedBetween.toFixed(2).replace('.', ',')} L
-                        <span className="text-slate-500 font-normal text-[11px] ml-1">({interShiftMetrics.avgKmL.toFixed(1).replace('.', ',')} km/L)</span>
-                      </span>
-                    </div>
-                  )}
-                  {interShiftMetrics.estimatedRemainingFuel !== null && interShiftMetrics.prevFinalFuelLiters !== undefined && (
-                    <>
-                      <div className="flex items-center justify-between text-[13px]">
-                        <span className="text-slate-400 font-bold">🪣 Restante estimado no tanque</span>
-                        <span className={`font-black font-mono ${interShiftMetrics.estimatedRemainingFuel < 5 ? 'text-rose-400' : interShiftMetrics.estimatedRemainingFuel < 10 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                          {interShiftMetrics.estimatedRemainingFuel.toFixed(2).replace('.', ',')} L
-                          <span className="text-slate-500 font-normal text-[11px] ml-1">(era {interShiftMetrics.prevFinalFuelLiters.toFixed(1).replace('.', ',')} L)</span>
-                        </span>
-                      </div>
-                      {interShiftMetrics.kmUntilRefuelEstimated !== null && (
-                        <div className="flex items-center justify-between text-[13px]">
-                          <span className="text-slate-400 font-bold">📍 KM até próximo abastecimento</span>
-                          <span className={`font-black font-mono ${interShiftMetrics.kmUntilRefuelEstimated < 30 ? 'text-rose-400' : interShiftMetrics.kmUntilRefuelEstimated < 80 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                            ~{Math.round(interShiftMetrics.kmUntilRefuelEstimated).toLocaleString('pt-BR')} km
-                          </span>
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStartingFuelLevel('CUSTOM');
-                          const liters = interShiftMetrics.estimatedRemainingFuel!;
-                          setStartingFuelLitersInput(maskFuelLiters((liters * 1000).toFixed(0)));
-                          playBeep();
-                        }}
-                        className="w-full mt-1 py-1.5 px-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[12.5px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all"
-                      >
-                        ✅ Usar estimativa ({interShiftMetrics.estimatedRemainingFuel.toFixed(2).replace('.', ',')} L) no campo de combustível
-                      </button>
-                    </>
-                  )}
+
+                  {/* Para encher o tanque */}
+                  <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-emerald-950/30 border border-emerald-800/40">
+                    <span className="text-[13px] font-bold text-slate-300">Para encher o tanque</span>
+                    <span className="text-[15px] font-black font-mono text-emerald-400">
+                      {interShiftMetrics.litersToFill.toFixed(2).replace('.', ',')} L
+                    </span>
+                  </div>
+
+                  {/* Botão usar estimativa */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartingFuelLevel('CUSTOM');
+                      setStartingFuelLitersInput(maskFuelLiters((interShiftMetrics.litersNow * 1000).toFixed(0)));
+                      playBeep();
+                    }}
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[12px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition-all"
+                  >
+                    Usar {interShiftMetrics.litersNow.toFixed(2).replace('.', ',')} L no campo de combustível
+                  </button>
                 </div>
               )}
             </div>
@@ -2002,19 +1993,6 @@ export function QuickRegister({
                   : 'Calculado automaticamente baseado nas configurações do seu veículo.'}
               </span>
 
-              {/* KM até próximo abastecimento baseado no combustível atual do formulário */}
-              {kmUntilRefuelFromForm !== null && (
-                <div className={`flex items-center justify-between mt-2 px-3 py-2 rounded-lg border text-[13px] ${
-                  kmUntilRefuelFromForm < 30
-                    ? 'bg-rose-950/30 border-rose-800/40 text-rose-400'
-                    : kmUntilRefuelFromForm < 80
-                    ? 'bg-amber-950/30 border-amber-800/40 text-amber-400'
-                    : 'bg-emerald-950/30 border-emerald-800/40 text-emerald-400'
-                }`}>
-                  <span className="font-bold">⛽ KM restantes até abastecer</span>
-                  <span className="font-black font-mono">~{Math.round(kmUntilRefuelFromForm).toLocaleString('pt-BR')} km</span>
-                </div>
-              )}
             </div>
 
             {/* Saldos das Apps / Plataformas (Obrigatório) */}
