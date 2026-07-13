@@ -74,7 +74,29 @@ export function computeRefuelMetrics(shifts: Shift[], vehicleType: 'CAR' | 'BIKE
     const activeRidesWithKm = activeShift.transactions.filter(
       t => t.type === 'IN' && t.category === 'CORRIDA' && t.km !== undefined && !t.isVirtual
     );
-    kmDriven = activeRidesWithKm.reduce((sum, t) => sum + (t.km || 0), 0);
+    const kmFromRides = activeRidesWithKm.reduce((sum, t) => sum + (t.km || 0), 0);
+
+    // Se o motorista rodou com o app desligado e digitou o hodômetro ao abastecer,
+    // usa o hodômetro da transação para recalcular o km real rodado (inclui km off-app).
+    if (activeShift.initialOdometer) {
+      const fuelTxsWithOdo = activeShift.transactions.filter(
+        t =>
+          (t.category === 'COMBUSTIVEL' || (t.liters !== undefined && t.liters > 0)) &&
+          t.odometer !== undefined &&
+          t.odometer > activeShift.initialOdometer!
+      );
+      if (fuelTxsWithOdo.length > 0) {
+        // Pega o hodômetro mais alto registrado (último abastecimento)
+        const maxFuelOdo = Math.max(...fuelTxsWithOdo.map(t => t.odometer!));
+        const kmFromOdo = maxFuelOdo - activeShift.initialOdometer;
+        // Usa o maior valor: hodômetro real ou soma de km dos apps
+        kmDriven = Math.max(kmFromRides, kmFromOdo);
+      } else {
+        kmDriven = kmFromRides;
+      }
+    } else {
+      kmDriven = kmFromRides;
+    }
   } else {
     // Fallback: Average KM driven per shift based on closed shifts
     if (shiftsWithOdo.length > 0) {
