@@ -46,6 +46,57 @@ function parseFuelLiters(input: string): number {
   return parseFloat(clean) / 1000;
 }
 
+// --- IN-PROGRESS FORM DRAFT PERSISTENCE ---
+// Keeps whatever the driver has typed but not yet submitted safe across a forced page
+// reload (e.g. a mobile browser/PWA dropping the dev HMR socket while backgrounded) or an
+// app restart. Without this, switching apps mid-entry silently wiped the calculator, the
+// app-offer/passenger fields, description, KM, etc.
+const QUICK_REGISTER_DRAFT_KEY = 'moob_quickregister_draft';
+
+interface QuickRegisterDraft {
+  txType?: 'IN' | 'OUT' | 'FUEL';
+  platform?: PlatformType;
+  inType?: 'CORRIDA' | 'CANCELAMENTO';
+  paymentMethod?: PaymentMethod | null;
+  extraPaymentMethod?: 'PIX' | 'DINHEIRO';
+  inputValue?: string;
+  expenseCategory?: string;
+  customExpenseName?: string;
+  fuelPrice?: string;
+  fuelLiters?: string;
+  fuelOdometerInput?: string;
+  km?: string;
+  description?: string;
+  appOfferInput?: string;
+  passengerAppInput?: string;
+  tipInput?: string;
+}
+
+function loadQuickRegisterDraft(): QuickRegisterDraft {
+  try {
+    const raw = localStorage.getItem(QUICK_REGISTER_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveQuickRegisterDraft(draft: QuickRegisterDraft) {
+  try {
+    localStorage.setItem(QUICK_REGISTER_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Storage unavailable (private mode, quota) — draft persistence is best-effort only.
+  }
+}
+
+function clearQuickRegisterDraft() {
+  try {
+    localStorage.removeItem(QUICK_REGISTER_DRAFT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 interface QuickRegisterProps {
   activeShift: Shift | null;
   onAddTransaction: (tx: {
@@ -114,34 +165,38 @@ export function QuickRegister({
     localStorage.setItem('moob_caixa_exclude_sundays', String(val));
   };
 
+  // Restore any in-progress entry the driver had not yet submitted (survives forced
+  // reloads from the mobile HMR-socket-drop issue, app kills, etc.)
+  const [initialDraft] = useState<QuickRegisterDraft>(() => loadQuickRegisterDraft());
+
   // Mode: IN (Entrada/Corrida), OUT (Saída/Despesa) or FUEL (Abastecimento)
-  const [txType, setTxType] = useState<'IN' | 'OUT' | 'FUEL'>('IN');
-  const [platform, setPlatform] = useState<PlatformType>('UBER');
+  const [txType, setTxType] = useState<'IN' | 'OUT' | 'FUEL'>(initialDraft.txType || 'IN');
+  const [platform, setPlatform] = useState<PlatformType>(initialDraft.platform || 'UBER');
 
   // Campanha: quick calculator-only credit straight to the selected platform's balance
   const [isCampanhaOpen, setIsCampanhaOpen] = useState(false);
   const [campanhaInput, setCampanhaInput] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [extraPaymentMethod, setExtraPaymentMethod] = useState<'PIX' | 'DINHEIRO'>('PIX');
-  const [inType, setInType] = useState<'CORRIDA' | 'CANCELAMENTO'>('CORRIDA');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(initialDraft.paymentMethod ?? null);
+  const [extraPaymentMethod, setExtraPaymentMethod] = useState<'PIX' | 'DINHEIRO'>(initialDraft.extraPaymentMethod || 'PIX');
+  const [inType, setInType] = useState<'CORRIDA' | 'CANCELAMENTO'>(initialDraft.inType || 'CORRIDA');
   
   // Custom numeric entry (string to support keypad entry like "15.50")
-  const [inputValue, setInputValue] = useState<string>('');
+  const [inputValue, setInputValue] = useState<string>(initialDraft.inputValue || '');
   
   // Expenses state
-  const [expenseCategory, setExpenseCategory] = useState<string>('ALIMENTACAO');
-  const [customExpenseName, setCustomExpenseName] = useState<string>('');
+  const [expenseCategory, setExpenseCategory] = useState<string>(initialDraft.expenseCategory || 'ALIMENTACAO');
+  const [customExpenseName, setCustomExpenseName] = useState<string>(initialDraft.customExpenseName || '');
   
   // Fuel Supply Calculator States
-  const [fuelPrice, setFuelPrice] = useState<string>('');
-  const [fuelLiters, setFuelLiters] = useState<string>('');
+  const [fuelPrice, setFuelPrice] = useState<string>(initialDraft.fuelPrice || '');
+  const [fuelLiters, setFuelLiters] = useState<string>(initialDraft.fuelLiters || '');
   
   // Optional parameters
-  const [km, setKm] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [appOfferInput, setAppOfferInput] = useState<string>('');
-  const [passengerAppInput, setPassengerAppInput] = useState<string>('');
-  const [tipInput, setTipInput] = useState<string>('');
+  const [km, setKm] = useState<string>(initialDraft.km || '');
+  const [description, setDescription] = useState<string>(initialDraft.description || '');
+  const [appOfferInput, setAppOfferInput] = useState<string>(initialDraft.appOfferInput || '');
+  const [passengerAppInput, setPassengerAppInput] = useState<string>(initialDraft.passengerAppInput || '');
+  const [tipInput, setTipInput] = useState<string>(initialDraft.tipInput || '');
   const [startingPixBalanceInput, setStartingPixBalanceInput] = useState<string>('');
   const [startingCashBalanceInput, setStartingCashBalanceInput] = useState<string>('');
   const [startingUberBalanceInput, setStartingUberBalanceInput] = useState<string>('');
@@ -187,7 +242,7 @@ export function QuickRegister({
   const [odoFinal, setOdoFinal] = useState<string>('');
   const [sumFormula, setSumFormula] = useState<string>('');
   const [startingOdometerInput, setStartingOdometerInput] = useState<string>('');
-  const [fuelOdometerInput, setFuelOdometerInput] = useState<string>('');
+  const [fuelOdometerInput, setFuelOdometerInput] = useState<string>(initialDraft.fuelOdometerInput || '');
 
   // KM calculations
   const odoDiff = (() => {
@@ -252,8 +307,51 @@ export function QuickRegister({
       setOdoInitial('');
       setOdoFinal('');
       setSumFormula('');
+      clearQuickRegisterDraft();
     }
   }, [activeShift]);
+
+  // Persist the in-progress entry so it survives a forced reload (mobile HMR socket drop,
+  // OS killing a backgrounded PWA, etc.) instead of silently wiping what was typed.
+  // Debounced to avoid hammering localStorage on every keystroke.
+  useEffect(() => {
+    const draft: QuickRegisterDraft = {
+      txType, platform, inType, paymentMethod, extraPaymentMethod,
+      inputValue, expenseCategory, customExpenseName, fuelPrice, fuelLiters,
+      fuelOdometerInput, km, description, appOfferInput, passengerAppInput, tipInput,
+    };
+    const timer = setTimeout(() => saveQuickRegisterDraft(draft), 300);
+    return () => clearTimeout(timer);
+  }, [
+    txType, platform, inType, paymentMethod, extraPaymentMethod,
+    inputValue, expenseCategory, customExpenseName, fuelPrice, fuelLiters,
+    fuelOdometerInput, km, description, appOfferInput, passengerAppInput, tipInput,
+  ]);
+
+  // Flush the draft immediately when the tab/app is about to be backgrounded or closed,
+  // so the 300ms debounce window can't lose the last keystroke right before a reload/kill.
+  useEffect(() => {
+    const flush = () => {
+      saveQuickRegisterDraft({
+        txType, platform, inType, paymentMethod, extraPaymentMethod,
+        inputValue, expenseCategory, customExpenseName, fuelPrice, fuelLiters,
+        fuelOdometerInput, km, description, appOfferInput, passengerAppInput, tipInput,
+      });
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [
+    txType, platform, inType, paymentMethod, extraPaymentMethod,
+    inputValue, expenseCategory, customExpenseName, fuelPrice, fuelLiters,
+    fuelOdometerInput, km, description, appOfferInput, passengerAppInput, tipInput,
+  ]);
 
   // Capacity calculations for reactive fuel selection
   const carCapacity = (() => {
@@ -694,6 +792,7 @@ export function QuickRegister({
       setAppOfferInput('');
       setPassengerAppInput('');
       setCustomExpenseName('');
+      clearQuickRegisterDraft();
       return;
     }
 
@@ -758,6 +857,7 @@ export function QuickRegister({
       setTipInput('');
       setPaymentMethod(null);
       setCustomExpenseName('');
+      clearQuickRegisterDraft();
       return;
     } else {
       if (isNaN(cleanValue) || cleanValue <= 0) {
@@ -836,6 +936,7 @@ export function QuickRegister({
     setFuelPrice('');
     setFuelLiters('');
     setFuelOdometerInput('');
+    clearQuickRegisterDraft();
   };
 
   if (!activeShift) {
