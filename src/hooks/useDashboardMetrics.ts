@@ -75,5 +75,6 @@ export function useDashboardMetrics({
     faturamentoPosDespesas,
     monthlyGoalMath,
     lastClosedShiftFaturamento,
+    lastClosedShift: lastClosedShiftRef,
   };
 }

@@ -130,6 +130,7 @@ export default function App() {
     faturamentoPosDespesas,
     monthlyGoalMath,
     lastClosedShiftFaturamento,
+    lastClosedShift,
   } = useDashboardMetrics({ shifts, vehicleType, periodFilter, activeTab, excludeSundays });
 
   // --- ACTIONS ---
@@ -289,6 +290,7 @@ export default function App() {
                       onOpenShift={handleOpenShift}
                       vehicleType={vehicleType}
                       lastClosedShiftFaturamento={lastClosedShiftFaturamento}
+                      lastClosedShift={lastClosedShift ?? undefined}
                       onGoToViagem={() => setSystemTab('viagem')}
                       excludeSundays={excludeSundays}
                       onToggleExcludeSundays={setExcludeSundays}
