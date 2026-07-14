@@ -13,6 +13,7 @@ import { Shift, Transaction } from '../types';
 import { playBeep, playCashRegister } from '../utils/audio';
 import { parseBRLInput, maskBRL, maskOdometer, parseOdometerInput, getPlatformBalanceDelta, getTransactionNetValue, formatDecimalBRL, calculateExtraValue, getTransactionFaturamentoReal, formatOdometer, formatBRL } from '../utils/format';
 import { PainelBordo } from './PainelBordo';
+import { VehicleModelId, MOTO_VEHICLE_MODEL_OPTIONS, getVehicleModelConsumptionKmL } from '../utils/vehicleModels';
 
 interface ShiftControlProps {
   activeShift: Shift | null;
@@ -139,6 +140,20 @@ export function ShiftControl({
     const v = localStorage.getItem('moob_fuel_moto_consumption');
     return v ? parseFloat(v) : 35;
   });
+
+  // Modelo de veículo da moto: 'MANUAL' usa motoConsumption fixo; um modelo
+  // específico (ex. Mottu Sport 110) calcula o km/L em tempo real a partir da
+  // velocidade do GPS do turno, via fórmula de torque/potência do motor.
+  const [motoModel, setMotoModel] = useState<VehicleModelId>(() => {
+    const v = localStorage.getItem('moob_fuel_moto_model');
+    return v === 'MOTTU_SPORT_110' ? 'MOTTU_SPORT_110' : 'MANUAL';
+  });
+
+  const handleSetMotoModel = (modelId: VehicleModelId) => {
+    setMotoModel(modelId);
+    localStorage.setItem('moob_fuel_moto_model', modelId);
+    playBeep();
+  };
 
   const [motoCapacity, setMotoCapacity] = useState<number>(() => {
     const v = localStorage.getItem('moob_fuel_moto_capacity');
@@ -807,7 +822,10 @@ export function ShiftControl({
   const totalKmRun = ridesWithKm.reduce((s, t) => s + (t.km || 0), 0);
   const ridesWithKmCount = ridesWithKm.length;
   
-  const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : motoConsumption;
+  // Consumo dinâmico da moto: se um modelo físico estiver selecionado, o km/L é
+  // recalculado a cada leitura de velocidade do GPS do turno; senão usa o valor manual.
+  const dynamicMotoConsumption = getVehicleModelConsumptionKmL(motoModel, gpsSpeedKmh || 0, motoConsumption);
+  const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
   const activeCapacity = fuelVehicleType === 'CARRO' ? carCapacity : motoCapacity;
 
   // Litros de combustível abastecidos durante o turno
@@ -1236,7 +1254,33 @@ export function ShiftControl({
                         )}
                       </span>
                     </div>
-                    
+
+                    {/* Seletor de Modelo de Veículo (Moto) — escolhe entre km/L manual ou fórmula física */}
+                    {fuelVehicleType === 'MOTO' && (
+                      <div className="w-full flex items-center justify-between gap-2 mb-2 bg-slate-950/50 border border-slate-800/70 rounded-lg px-2.5 py-1.5">
+                        <span className="text-[11px] text-slate-500 uppercase font-bold shrink-0">🏍️ Modelo</span>
+                        <select
+                          value={motoModel}
+                          onChange={(e) => handleSetMotoModel(e.target.value as VehicleModelId)}
+                          className="bg-slate-900 border border-slate-800 rounded-md text-[12px] text-slate-200 font-mono px-2 py-1 flex-1 min-w-0 cursor-pointer focus:outline-none focus:border-amber-500/50"
+                        >
+                          {MOTO_VEHICLE_MODEL_OPTIONS.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="font-mono text-[11.5px] text-amber-400 font-black shrink-0">
+                          {dynamicMotoConsumption.toFixed(1).replace('.', ',')} km/L
+                        </span>
+                      </div>
+                    )}
+                    {motoModel === 'MOTTU_SPORT_110' && fuelVehicleType === 'MOTO' && (
+                      <p className="w-full text-[11px] text-slate-500 leading-relaxed -mt-1 mb-2 px-0.5">
+                        Consumo calculado em tempo real pela velocidade do GPS (torque/potência do motor 110i), faixa 20-80 km/L.
+                      </p>
+                    )}
+
                     {/* Physical Instrument Gauge (SVG) */}
                     <div className="relative">
                       {fuelVehicleType === 'MOTO' ? (
@@ -2434,7 +2478,7 @@ export function ShiftControl({
                       {/* KM rodado metrics */}
                       {selectedTx.km !== undefined && selectedTx.km > 0 && (
                         (() => {
-                          const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : motoConsumption;
+                          const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
                           const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
                           const avgPrice = fTxs.length > 0 
                             ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
@@ -2488,7 +2532,7 @@ export function ShiftControl({
                     {/* Pro tip or disclaimer */}
                     <div className="text-[12.5px] text-slate-505 font-sans leading-relaxed pt-1.5 border-t border-slate-850 border-dashed">
                       {(() => {
-                        const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : motoConsumption;
+                        const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
                         const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
                         const avgPrice = fTxs.length > 0 
                           ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
@@ -2999,7 +3043,7 @@ export function ShiftControl({
                               const endOdo = parseOdometerInput(masked);
                               if (endOdo !== undefined && endOdo >= idxOdo) {
                                 const kmDriven = endOdo - idxOdo;
-                                const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : motoConsumption;
+                                const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
                                 
                                 const fuelTxLiters = activeShift?.transactions
                                   ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
