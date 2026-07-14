@@ -55,8 +55,8 @@ npm run build
 npm start
 ```
 
-## Setup status (2026-07-12)
-Dependencies installed and the `Start application` workflow (`npm run dev` on port 5000) is running and verified via screenshot — the app boots and connects to the fallback MongoDB successfully. Gemini and Mercado Pago secrets were not provided, so those features are not yet functional.
+## Setup status (2026-07-14)
+Project re-imported from GitHub; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) recreated, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. Gemini and Mercado Pago secrets still not provided, so those features remain non-functional until set.
 
 ## Stack
 - **Frontend**: React 19, Vite 6, Tailwind CSS 4, Recharts, Framer Motion
