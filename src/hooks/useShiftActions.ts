@@ -12,6 +12,7 @@ interface UseShiftActionsParams {
   shifts: Shift[];
   setShifts: React.Dispatch<React.SetStateAction<Shift[]>>;
   saveToLocalStorage: (newShifts: Shift[]) => void;
+  queueCloudSync?: (newShifts: Shift[]) => void;
   setDriverName: (name: string) => void;
   setConfirmDialog: (dialog: ConfirmDialogState | null) => void;
   setSelectedShiftForReport: (shift: Shift | null) => void;
@@ -22,6 +23,7 @@ export function useShiftActions({
   shifts,
   setShifts,
   saveToLocalStorage,
+  queueCloudSync,
   setDriverName,
   setConfirmDialog,
   setSelectedShiftForReport,
@@ -123,6 +125,7 @@ export function useShiftActions({
       });
 
       localStorage.setItem('moob_caixa_shifts', JSON.stringify(updated));
+      queueCloudSync?.(updated);
       return updated;
     });
   };

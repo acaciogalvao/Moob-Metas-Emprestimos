@@ -510,7 +510,7 @@ export function PainelBordo({
               {/* KM restantes com combustível */}
               <MetricCard
                 icon="🏁"
-                label="KM p/ Esvaziar"
+                label="Autonomia"
                 value={remainingKm > 0 ? `${remainingKm.toFixed(0)} km` : '-- km'}
                 color={remainingKm > 0 && remainingKm < autonomyKmPerL * 2 ? 'red' : 'emerald'}
                 highlight={remainingKm > 0 && remainingKm < autonomyKmPerL * 2}

@@ -58,6 +58,13 @@ npm start
 ## Setup status (2026-07-14)
 Project re-imported from GitHub; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) recreated, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. Gemini and Mercado Pago secrets still not provided, so those features remain non-functional until set.
 
+## Automatic GPS calibration & offline-first persistence (2026-07-14)
+- Fuel-consumption calibration at shift close is now always automatic (`src/components/ShiftControl.tsx`) — the manual "calibrar veículo" checkbox was removed; the app always recalibrates km/L from odometer + fuel data when available.
+- `src/hooks/useShiftPersistence.ts` now tracks `navigator.onLine`/`offline` events explicitly: on disconnect it keeps saving to `localStorage` and marks a pending-sync flag; on reconnect it automatically re-syncs the latest local data to MongoDB with no user action.
+- A 500ms heartbeat (`HEARTBEAT_MS`) continuously re-persists in-memory shift state to `localStorage` and retries a pending cloud sync if the network silently came back (common in backgrounded PWAs). `beforeunload`/`pagehide`/`visibilitychange` force a final flush so refreshing or backgrounding the tab never loses active shift/transaction data.
+- `queueCloudSync` (exposed from `useShiftPersistence`, wired through `useAppState`/`useShiftActions`) lets transaction-adding flows also push to the cloud, not just shift open/close/update.
+- Dashboard label "KM p/ Esvaziar" renamed to "Autonomia" in `src/components/PainelBordo.tsx`.
+
 ## Stack
 - **Frontend**: React 19, Vite 6, Tailwind CSS 4, Recharts, Framer Motion
 - **Backend**: Express 4, TypeScript, tsx (dev runner)

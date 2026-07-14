@@ -101,7 +101,8 @@ export function ShiftControl({
   const [finalFuelLitersInput, setFinalFuelLitersInput] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [calibrateConsumption, setCalibrateConsumption] = useState(true);
+  // Calibração de consumo é sempre automática — não há mais opção manual.
+  const calibrateConsumption = true;
   const [withdrawalModal, setWithdrawalModal] = useState<{
     platform: 'UBER' | '99';
     maxAmount: number;
@@ -3721,22 +3722,13 @@ export function ShiftControl({
                           </div>
                         )}
                         
-                        {/* Calibration option */}
+                        {/* Calibração é sempre automática — sem opção manual */}
                         {consumption !== undefined && (
                           <div className="flex items-start gap-1.5 border-t border-slate-800/80 pt-2 mt-1">
-                            <input
-                              type="checkbox"
-                              id="calibrateConsumptionCheckbox"
-                              checked={calibrateConsumption}
-                              onChange={(e) => {
-                                setCalibrateConsumption(e.target.checked);
-                                playBeep();
-                              }}
-                              className="w-3.5 h-3.5 rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-0 focus:ring-offset-0 mt-0.5"
-                            />
-                            <label htmlFor="calibrateConsumptionCheckbox" className="text-[12px] text-slate-400 cursor-pointer select-none leading-tight font-sans">
-                              Calibrar veículo com este consumo de <strong>{consumption.toFixed(1)} km/L</strong> para os próximos turnos.
-                            </label>
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <span className="text-[12px] text-slate-400 leading-tight font-sans">
+                              Veículo calibrado automaticamente com este consumo de <strong>{consumption.toFixed(1)} km/L</strong> para os próximos turnos.
+                            </span>
                           </div>
                         )}
                       </div>
