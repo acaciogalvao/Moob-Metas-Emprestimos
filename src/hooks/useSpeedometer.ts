@@ -92,21 +92,21 @@ export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, 
             }
           }
 
-          // 4. Filter the signal (O MAIS IMPORTANTE)
-          // - Standstill check (speed < 1.5 km/h is noise)
-          if (rawSpeedKmh < 1.5) {
+          // 4. Filtragem do sinal
+          // - Snap-to-zero: < 1 km/h é ruído de parado
+          if (rawSpeedKmh < 1.0) {
             rawSpeedKmh = 0;
           }
 
-          // - Ignore spikes: discard speeds above 200 km/h (ruído)
+          // - Descarta picos impossíveis
           if (rawSpeedKmh > 200) {
-            rawSpeedKmh = currentSpeedRef.current; // Keep previous stable speed
+            rawSpeedKmh = currentSpeedRef.current;
           }
 
-          // - Moving Average (Média Móvel): last 4 readings (perfect compromise between delay and smoothness)
+          // - Média móvel de 2 amostras apenas (menos lag que 4)
           const history = speedHistoryRef.current;
           history.push(rawSpeedKmh);
-          if (history.length > 4) {
+          if (history.length > 2) {
             history.shift();
           }
           const sum = history.reduce((acc, val) => acc + val, 0);

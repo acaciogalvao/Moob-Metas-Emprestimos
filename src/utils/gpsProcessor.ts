@@ -1,16 +1,18 @@
 /**
- * gpsProcessor.ts — Módulo GPS seguindo a lógica da 99/Uber
+ * gpsProcessor.ts — Processador GPS de alta precisão e baixa latência
  *
- * Regras implementadas:
- *  1. Entrada: array de pontos {timestamp (ms), latitude, longitude}
- *  2. Velocidade instantânea via Haversine + suavização EMA (α=0.3)
- *     - velBruta < 1 km/h → força 0 (elimina ruído de parado)
- *     - Limite de 180 km/h (descarta picos espúrios)
- *  3. Odômetro = soma acumulada das distâncias Haversine; histórico dos últimos 100 pontos
- *  4. Validação:
- *     - > 500m em ≤ 1 segundo → descarta ponto (falha de GPS)
- *     - Ângulo > 90° em < 2 segundos → reduz velocidade em 50% (curva)
- *  5. Saída em tempo real: "Velocidade: X km/h | Distância total: Y km"
+ * Estratégia de velocidade:
+ *  - FONTE PRIMÁRIA: coords.speed do chip GPS (Doppler, já filtrado por Kalman no SO)
+ *    → suavização leve EMA α=0.80 (rápido, pois o sinal já é limpo)
+ *  - FALLBACK: Haversine (quando chip não fornece speed)
+ *    → suavização EMA α=0.65 (mais conservador, sinal calculado)
+ *
+ * Snap-to-zero imediato:
+ *  - Nativo: speed < 0.5 m/s (~1.8 km/h) → 0 na hora
+ *  - Haversine: velBruta < 2 km/h → 0 na hora
+ *
+ * Sem redução por curva (causava falsos slowdowns com speed nativo).
+ * Odômetro usa Haversine sempre (coordenadas são mais confiáveis que integração de speed).
  */
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────────
@@ -19,8 +21,8 @@ export interface GpsPoint {
   timestamp: number;       // ms (epoch)
   latitude: number;        // graus decimais
   longitude: number;       // graus decimais
-  speed?: number | null;   // m/s do chip GPS (opcional)
-  accuracy?: number;       // precisão em metros (opcional)
+  speed?: number | null;   // m/s do chip GPS (já filtrado por Kalman no SO)
+  accuracy?: number;       // precisão em metros
 }
 
 export interface GpsProcessorState {
@@ -28,25 +30,43 @@ export interface GpsProcessorState {
   totalKm: number;               // odômetro total acumulado (nunca reseta)
   tripKm: number;                // km do turno atual (resetável)
   lastPoint: GpsPoint | null;    // último ponto válido processado
-  history: GpsPoint[];           // últimos 100 pontos (regra 3c)
-  lastBearing: number | null;    // rumo do último deslocamento (graus 0-360)
-  lastBearingTime: number | null; // timestamp do último rumo calculado
+  history: GpsPoint[];           // últimos 100 pontos
+  lastBearing: number | null;
+  lastBearingTime: number | null;
+  usingNativeSpeed: boolean;     // indica qual fonte está sendo usada (para debug)
 }
 
 export interface GpsProcessorOutput {
-  speedKmh: number;     // velocidade suavizada para exibição (km/h, inteiro)
-  totalKm: number;      // odômetro acumulado (km)
-  tripKm: number;       // km do turno atual (km)
+  speedKmh: number;         // velocidade suavizada para exibição (km/h, inteiro)
+  totalKm: number;          // odômetro acumulado (km)
+  tripKm: number;           // km do turno atual (km)
   state: GpsProcessorState;
-  discarded: boolean;   // true = ponto descartado por falha de GPS
+  discarded: boolean;       // true = ponto descartado por falha de GPS
+  usingNativeSpeed: boolean;
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
-const ALPHA = 0.3;            // fator EMA (regra 2d)
-const MAX_SPEED_KMH = 180;    // limite de velocidade (regra 2e)
-const MAX_DIST_1S_M = 500;    // distância máxima por segundo antes de descartar (regra 4a)
-const MIN_MOVE_M = 1.5;       // deslocamento mínimo para calcular rumo
+/** EMA para velocidade nativa do chip (sinal já suave — resposta rápida) */
+const ALPHA_NATIVE = 0.80;
+
+/** EMA para velocidade calculada por Haversine (sinal mais ruidoso — mais conservador) */
+const ALPHA_HAVERSINE = 0.65;
+
+/** Velocidade máxima aceita — acima disso é ruído */
+const MAX_SPEED_KMH = 180;
+
+/** Distância máxima em ≤1s — acima é falha de GPS */
+const MAX_DIST_1S_M = 500;
+
+/** Deslocamento mínimo para calcular rumo */
+const MIN_MOVE_M = 1.5;
+
+/** Velocidade nativa abaixo deste valor (m/s) → snap imediato para zero */
+const NATIVE_ZERO_SNAP_MS = 0.5;   // ~1.8 km/h
+
+/** Velocidade Haversine abaixo deste valor (km/h) → snap imediato para zero */
+const HAVERSINE_ZERO_SNAP_KMH = 2;
 
 // ─── Funções auxiliares ──────────────────────────────────────────────────────
 
@@ -54,15 +74,11 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-/**
- * Distância Haversine entre dois pontos geodésicos — retorna metros.
- * Regra 2a / Regra 3a.
- */
 export function haversineM(
   lat1: number, lon1: number,
   lat2: number, lon2: number,
 ): number {
-  const R = 6_371_000; // raio médio da Terra em metros
+  const R = 6_371_000;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -71,10 +87,6 @@ export function haversineM(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Rumo (bearing) de A → B em graus [0, 360).
- * Usado para detectar mudanças bruscas de direção (regra 4b).
- */
 function bearingDeg(
   lat1: number, lon1: number,
   lat2: number, lon2: number,
@@ -87,17 +99,8 @@ function bearingDeg(
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-/**
- * Diferença angular mínima entre dois rumos (arco mais curto).
- */
-function angleDiff(a: number, b: number): number {
-  const d = Math.abs(a - b) % 360;
-  return d > 180 ? 360 - d : d;
-}
-
 // ─── API pública ─────────────────────────────────────────────────────────────
 
-/** Inicializa o estado do processador GPS. */
 export function gpsProcessorInit(): GpsProcessorState {
   return {
     velSuave: 0,
@@ -107,25 +110,17 @@ export function gpsProcessorInit(): GpsProcessorState {
     history: [],
     lastBearing: null,
     lastBearingTime: null,
+    usingNativeSpeed: false,
   };
 }
 
-/**
- * Processa um novo ponto GPS e retorna velocidade + odômetro atualizados.
- * Aplica todas as regras obrigatórias do spec.
- *
- * @param prev   Estado anterior do processador
- * @param point  Novo ponto GPS recebido
- * @returns      Saída com velocidade, km e novo estado
- */
 export function processGpsPoint(
   prev: GpsProcessorState,
   point: GpsPoint,
 ): GpsProcessorOutput {
-  // Mantém histórico de até 100 pontos (regra 3c)
   const history = [...prev.history, point].slice(-100);
 
-  // ── Primeiro ponto: inicializa sem velocidade ───────────────────────────
+  // Primeiro ponto — sem velocidade ainda
   if (!prev.lastPoint) {
     return {
       speedKmh: 0,
@@ -133,18 +128,19 @@ export function processGpsPoint(
       tripKm: prev.tripKm,
       state: { ...prev, lastPoint: point, history },
       discarded: false,
+      usingNativeSpeed: false,
     };
   }
 
   const last = prev.lastPoint;
-  const deltaTMs = Math.max(1, point.timestamp - last.timestamp);
+  const deltaTMs  = Math.max(1, point.timestamp - last.timestamp);
   const deltaTSec = deltaTMs / 1000;
   const deltaTHours = deltaTMs / 3_600_000;
 
-  // ── Cálculo da distância (Haversine) — Regra 2a / Regra 3a ────────────
+  // Distância Haversine — usada sempre para o odômetro
   const distM = haversineM(last.latitude, last.longitude, point.latitude, point.longitude);
 
-  // ── Regra 4a: descarta se > 500m em ≤ 1 segundo (falha de GPS) ─────────
+  // Descarta ponto impossível (> 500m em ≤ 1s)
   if (distM > MAX_DIST_1S_M && deltaTSec <= 1) {
     return {
       speedKmh: prev.velSuave,
@@ -152,52 +148,58 @@ export function processGpsPoint(
       tripKm: prev.tripKm,
       state: { ...prev, history },
       discarded: true,
+      usingNativeSpeed: prev.usingNativeSpeed,
     };
   }
 
-  // ── Rumo para detecção de curva (regra 4b) ─────────────────────────────
+  // ── Rumo (só para manutenção do estado) ────────────────────────────────
   const movingSig = distM >= MIN_MOVE_M;
   const currentBearing = movingSig
     ? bearingDeg(last.latitude, last.longitude, point.latitude, point.longitude)
     : (prev.lastBearing ?? 0);
 
-  // ── Regra 4b: ângulo > 90° em < 2s → reduz velocidade 50% (curva) ─────
-  let turnReduction = false;
-  if (
-    movingSig &&
-    prev.lastBearing !== null &&
-    prev.lastBearingTime !== null
-  ) {
-    const timeSinceBearingS = (point.timestamp - prev.lastBearingTime) / 1000;
-    if (
-      timeSinceBearingS < 2 &&
-      angleDiff(currentBearing, prev.lastBearing) > 90
-    ) {
-      turnReduction = true;
+  // ── Cálculo de velocidade: nativo primeiro, Haversine como fallback ────
+  let velSuave: number;
+  let usingNativeSpeed = false;
+  const nativeSpeedMs = point.speed;
+  const hasNativeSpeed = nativeSpeedMs !== null && nativeSpeedMs !== undefined && nativeSpeedMs >= 0;
+
+  if (hasNativeSpeed) {
+    // ── Fonte primária: chip GPS (Doppler + Kalman interno do SO) ─────────
+    usingNativeSpeed = true;
+    const nativeKmh = nativeSpeedMs! * 3.6;
+
+    if (nativeKmh > MAX_SPEED_KMH) {
+      // Pico impossível — mantém valor anterior
+      velSuave = prev.velSuave;
+    } else if (nativeSpeedMs! < NATIVE_ZERO_SNAP_MS) {
+      // Snap-to-zero imediato: parado é parado
+      velSuave = 0;
+    } else {
+      // EMA leve (α=0.80) — responde rápido sem tremer
+      velSuave = ALPHA_NATIVE * nativeKmh + (1 - ALPHA_NATIVE) * prev.velSuave;
+    }
+  } else {
+    // ── Fallback: velocidade calculada por coordenadas (Haversine) ─────────
+    const haversineKmh = (distM / 1000) / deltaTHours;
+
+    if (haversineKmh > MAX_SPEED_KMH) {
+      velSuave = prev.velSuave;
+    } else if (haversineKmh < HAVERSINE_ZERO_SNAP_KMH) {
+      // Snap-to-zero: menos ruidoso que EMA perto de zero
+      velSuave = 0;
+    } else {
+      // EMA moderado (α=0.65) — mais rápido que antes (era 0.3), ainda filtra ruído
+      velSuave = ALPHA_HAVERSINE * haversineKmh + (1 - ALPHA_HAVERSINE) * prev.velSuave;
     }
   }
 
-  // ── Regra 2b-c: velocidade bruta = distância / ΔT ─────────────────────
-  let velBruta = (distM / 1000) / deltaTHours; // km/h
-
-  // ── Regra 2e: limita a 180 km/h (descarta picos espúrios) ─────────────
-  if (velBruta > MAX_SPEED_KMH) velBruta = MAX_SPEED_KMH;
-
-  // ── Regra 2d: suavização EMA (α=0.3) ──────────────────────────────────
-  let velSuave = ALPHA * velBruta + (1 - ALPHA) * prev.velSuave;
-
-  // ── Regra 2d: < 1 km/h → força 0 (elimina ruído de parado) ───────────
-  if (velBruta < 1) velSuave = 0;
-
-  // ── Regra 4b: aplica redução por curva ────────────────────────────────
-  if (turnReduction) velSuave *= 0.5;
-
   velSuave = Math.max(0, Math.min(MAX_SPEED_KMH, velSuave));
 
-  // ── Regra 3a-b: odômetro — acumula todas as distâncias válidas ─────────
+  // ── Odômetro: sempre acumula distância Haversine ───────────────────────
   const distKm = distM / 1000;
   const totalKm = prev.totalKm + distKm;
-  const tripKm = prev.tripKm + distKm;
+  const tripKm  = prev.tripKm  + distKm;
 
   const newState: GpsProcessorState = {
     velSuave,
@@ -207,6 +209,7 @@ export function processGpsPoint(
     history,
     lastBearing: movingSig ? currentBearing : prev.lastBearing,
     lastBearingTime: movingSig ? point.timestamp : prev.lastBearingTime,
+    usingNativeSpeed,
   };
 
   return {
@@ -215,13 +218,10 @@ export function processGpsPoint(
     tripKm,
     state: newState,
     discarded: false,
+    usingNativeSpeed,
   };
 }
 
-/**
- * Reseta o km do turno (trip) sem afetar o odômetro total.
- * Regra 5: "Mantenha um odômetro separado para a viagem atual (resetável)."
- */
 export function resetTripKm(state: GpsProcessorState): GpsProcessorState {
   return { ...state, tripKm: 0 };
 }
