@@ -21,6 +21,7 @@ interface PainelBordoProps {
   externalShiftKm?: number;       // km acumulados no turno pelo GPS
   isExternalGpsActive?: boolean;  // true = GPS do turno está rodando
   externalAccuracy?: number | null; // precisão do sinal em metros
+  isGpsBackground?: boolean;      // true = app está em segundo plano mas GPS continua
 }
 
 type GpsSignal = 'SEM_SINAL' | 'FRACO' | 'BOM' | 'EXCELENTE';
@@ -66,6 +67,7 @@ export function PainelBordo({
   externalShiftKm,
   isExternalGpsActive = false,
   externalAccuracy,
+  isGpsBackground = false,
 }: PainelBordoProps) {
   const [isActive, setIsActive] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
@@ -245,10 +247,18 @@ export function PainelBordo({
           )}
           {/* GPS automático quando caixa está aberto — ou botão manual quando sem caixa */}
           {isExternalGpsActive ? (
-            <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              GPS Auto
-            </span>
+            isGpsBackground ? (
+              /* App em segundo plano — GPS continua rodando via keep-alive de áudio */
+              <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                GPS 2º plano
+              </span>
+            ) : (
+              <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                GPS Auto
+              </span>
+            )
           ) : (
             <button
               onClick={() => setIsActive(v => !v)}

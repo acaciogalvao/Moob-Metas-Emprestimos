@@ -1,4 +1,4 @@
-const CACHE_NAME = 'moob-caixa-v3';
+const CACHE_NAME = 'moob-caixa-v4';
 
 // Assets to pre-cache on install — only resources guaranteed to exist
 const PRECACHE_ASSETS = [
@@ -34,6 +34,15 @@ self.addEventListener('activate', (event) => {
       )
     ).then(() => self.clients.claim())
   );
+});
+
+// Keep-alive ping: a aba pinga o SW a cada 15s para manter o round-trip ativo,
+// o que sinaliza ao runtime que há trabalho pendente e evita que a aba seja congelada.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'KEEP_ALIVE_PING') {
+    // Responde imediatamente para completar o round-trip
+    event.source?.postMessage({ type: 'KEEP_ALIVE_PONG', ts: Date.now() });
+  }
 });
 
 // Fetch: Network-First com fallback para cache

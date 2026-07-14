@@ -46,6 +46,7 @@ interface ShiftControlProps {
   gpsShiftKm?: number;
   isGpsActive?: boolean;
   gpsAccuracy?: number | null;
+  isGpsBackground?: boolean;
 }
 
 export function ShiftControl({ 
@@ -69,7 +70,8 @@ export function ShiftControl({
   gpsSpeedKmh,
   gpsShiftKm,
   isGpsActive = false,
-  gpsAccuracy
+  gpsAccuracy,
+  isGpsBackground = false,
 }: ShiftControlProps) {
   // Local fallback state if not provided as props
   const [localExcludeSundays, setLocalExcludeSundays] = useState<boolean>(() => {
@@ -1028,6 +1030,7 @@ export function ShiftControl({
             externalShiftKm={gpsShiftKm}
             isExternalGpsActive={isGpsActive}
             externalAccuracy={gpsAccuracy}
+            isGpsBackground={isGpsBackground}
           />
         )}
 

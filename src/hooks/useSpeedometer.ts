@@ -4,11 +4,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { playBeep } from '../utils/audio';
+import { useBackgroundKeepAlive } from './useBackgroundKeepAlive';
 
 export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, shiftGpsIsActive: boolean) {
   const [isSpeedometerActive, setIsSpeedometerActive] = useState<boolean>(() => {
     return localStorage.getItem('moob_speedometer_active') === 'true';
   });
+
+  // Keep-alive ativo apenas quando velocímetro standalone (sem turno aberto)
+  // Quando tem turno, o useShiftGPS já mantém o keep-alive ativo
+  useBackgroundKeepAlive(isSpeedometerActive && !hasOpenShift);
+
   const [currentSpeed, setCurrentSpeed] = useState<number>(0);
   const [speedSimCount, setSpeedSimCount] = useState<number>(0);
   const [isPipActive, setIsPipActive] = useState<boolean>(false);

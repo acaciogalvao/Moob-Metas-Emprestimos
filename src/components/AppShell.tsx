@@ -258,6 +258,7 @@ export function AppShell() {
                       gpsShiftKm={shiftGps.shiftKm}
                       isGpsActive={shiftGps.isActive}
                       gpsAccuracy={shiftGps.accuracy}
+                      isGpsBackground={shiftGps.isBackground}
                     />
                   </div>
                 </motion.div>
