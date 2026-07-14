@@ -161,9 +161,31 @@ export function PainelBordo({
   const segundos = totalSeconds % 60;
 
   const shiftHours = shiftMs / 3_600_000;
-  // Usa GPS externo do turno (useShiftGPS) quando disponível, senão usa GPS interno
-  const combinedKm = totalKmRun + (isExternalGpsActive ? (externalShiftKm ?? 0) : gpsKm);
-  const avgSpeed = shiftHours > 0.05 ? combinedKm / shiftHours : 0;
+
+  // km do turno vindos exclusivamente do GPS (não mistura com odômetro de transações)
+  const gpsShiftKm = isExternalGpsActive ? (externalShiftKm ?? 0) : gpsKm;
+
+  // combinedKm: odômetro de transações + GPS — usado para cálculos de combustível
+  const combinedKm = totalKmRun + gpsShiftKm;
+
+  // Velocidade média calculada sobre km GPS reais do turno (exclui km de transações)
+  const avgSpeed = shiftHours > 0.05 && gpsShiftKm > 0.1
+    ? gpsShiftKm / shiftHours
+    : 0;
+
+  // Consumo real km/L: km GPS do turno ÷ litros consumidos.
+  // Usa fuelLitersConsumed (de abastecimentos) quando disponível;
+  // senão estima pelos km GPS e a autonomia configurada.
+  const litrosConsumidosEstimados = autonomyKmPerL > 0 ? gpsShiftKm / autonomyKmPerL : 0;
+  const litrosBase =
+    fuelLitersConsumed != null && fuelLitersConsumed > 0.05
+      ? fuelLitersConsumed
+      : litrosConsumidosEstimados;
+  // Só calcula consumo real quando há km GPS suficientes (>= 1 km)
+  const consumoRealKmL =
+    gpsShiftKm >= 1 && litrosBase > 0.05
+      ? gpsShiftKm / litrosBase
+      : autonomyKmPerL; // fallback: autonomia configurada
 
   // Velocidade a exibir: prioriza GPS externo (mais preciso, já filtrado por gpsProcessor)
   const displaySpeed = isExternalGpsActive ? (externalSpeed ?? 0) : currentSpeed;
@@ -376,104 +398,129 @@ export function PainelBordo({
           </div>
 
           {/* ── Grade de métricas ── */}
-          <div className="flex-1 w-full grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="flex-1 w-full flex flex-col gap-2.5">
 
-            {/* Velocidade atual */}
-            <MetricCard
-              icon="⚡"
-              label="Velocidade"
-              value={`${currentSpeed} km/h`}
-              color="cyan"
-              highlight={isActive && currentSpeed > 0}
-            />
+            {/* ── Linha de destaque: os 3 indicadores principais do turno ── */}
+            <div className="grid grid-cols-3 gap-2">
 
-            {/* Velocidade média */}
-            <MetricCard
-              icon="📊"
-              label="Vel. Média"
-              value={`${avgSpeed.toFixed(1).replace('.', ',')} km/h`}
-              color="blue"
-            />
-
-            {/* Tempo de trabalho */}
-            <MetricCard
-              icon="⏱️"
-              label="Tempo Turno"
-              value={`${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`}
-              color="violet"
-              mono
-            />
-
-            {/* KM Rodados */}
-            <MetricCard
-              icon="🛣️"
-              label="KM Rodados"
-              value={`${combinedKm.toFixed(1).replace('.', ',')} km`}
-              sub={gpsKm > 0 ? `GPS: +${gpsKm.toFixed(1).replace('.', ',')} km` : undefined}
-              color="slate"
-            />
-
-            {/* Combustível restante */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1">
-              <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">⛽ Combustível</span>
-              <span className="font-mono font-black text-sm text-white">
-                {fuelLitersRemaining > 0 ? `${fuelLitersRemaining.toFixed(1).replace('.', ',')} L` : '-- L'}
-              </span>
-              {/* barra de combustível */}
-              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${fuelPct}%`, backgroundColor: fuelColor }}
-                />
+              {/* KM do turno — GPS exclusivo */}
+              <div className="bg-emerald-950/50 border border-emerald-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
+                <span className="text-[9px] text-emerald-400/70 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
+                <span className="font-mono font-black text-base text-emerald-300 leading-tight">
+                  {gpsShiftKm >= 0.1
+                    ? `${gpsShiftKm.toFixed(1).replace('.', ',')} km`
+                    : '0,0 km'}
+                </span>
+                <span className="text-[9px] text-emerald-500/60 font-mono leading-none">GPS</span>
               </div>
-              <span className="text-[9px] text-slate-500 font-mono">
-                {fuelCapacity > 0 ? `${fuelPct.toFixed(0)}% de ${fuelCapacity}L` : '--'}
-              </span>
+
+              {/* Velocidade média */}
+              <div className="bg-sky-950/50 border border-sky-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
+                <span className="text-[9px] text-sky-400/70 uppercase font-black tracking-wider leading-none">📊 Vel. Média</span>
+                <span className="font-mono font-black text-base text-sky-300 leading-tight">
+                  {avgSpeed > 0
+                    ? `${avgSpeed.toFixed(0)} km/h`
+                    : '-- km/h'}
+                </span>
+                <span className="text-[9px] text-sky-500/60 font-mono leading-none">do turno</span>
+              </div>
+
+              {/* Consumo real km/L */}
+              <div className={`rounded-xl p-2.5 flex flex-col gap-0.5 border ${
+                gpsShiftKm >= 1 && litrosBase > 0.05
+                  ? 'bg-amber-950/50 border-amber-500/25'
+                  : 'bg-slate-900/40 border-slate-700/30'
+              }`}>
+                <span className={`text-[9px] uppercase font-black tracking-wider leading-none ${
+                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-400/70' : 'text-slate-500'
+                }`}>⚙️ Consumo</span>
+                <span className={`font-mono font-black text-base leading-tight ${
+                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-300' : 'text-slate-400'
+                }`}>
+                  {consumoRealKmL > 0
+                    ? `${consumoRealKmL.toFixed(1).replace('.', ',')} km/L`
+                    : '-- km/L'}
+                </span>
+                <span className={`text-[9px] font-mono leading-none ${
+                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-500/60' : 'text-slate-600'
+                }`}>
+                  {gpsShiftKm >= 1 && litrosBase > 0.05 ? 'real' : 'configurado'}
+                </span>
+              </div>
             </div>
 
-            {/* Autonomia km/L */}
-            <MetricCard
-              icon="🔋"
-              label="Autonomia"
-              value={autonomyKmPerL > 0 ? `${autonomyKmPerL.toFixed(1).replace('.', ',')} km/L` : '--'}
-              color="amber"
-            />
+            {/* ── Grade secundária: demais métricas ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
 
-            {/* KM restantes com combustível */}
-            <MetricCard
-              icon="🏁"
-              label="KM p/ Esvaziar"
-              value={remainingKm > 0 ? `${remainingKm.toFixed(0)} km` : '-- km'}
-              color={remainingKm > 0 && remainingKm < autonomyKmPerL * 2 ? 'red' : 'emerald'}
-              highlight={remainingKm > 0 && remainingKm < autonomyKmPerL * 2}
-            />
+              {/* Velocidade atual */}
+              <MetricCard
+                icon="⚡"
+                label="Velocidade"
+                value={`${displaySpeed} km/h`}
+                color="cyan"
+                highlight={displayIsActive && displaySpeed > 0}
+              />
 
-            {/* Litros consumidos no turno */}
-            <MetricCard
-              icon="💧"
-              label="Consumido (L)"
-              value={
-                fuelLitersConsumed != null && fuelLitersConsumed > 0
-                  ? `${fuelLitersConsumed.toFixed(1).replace('.', ',')} L`
-                  : autonomyKmPerL > 0 && combinedKm > 0
-                    ? `${(combinedKm / autonomyKmPerL).toFixed(1).replace('.', ',')} L`
+              {/* Tempo de trabalho */}
+              <MetricCard
+                icon="⏱️"
+                label="Tempo Turno"
+                value={`${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`}
+                color="violet"
+                mono
+              />
+
+              {/* Combustível restante */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">⛽ Combustível</span>
+                <span className="font-mono font-black text-sm text-white">
+                  {fuelLitersRemaining > 0 ? `${fuelLitersRemaining.toFixed(1).replace('.', ',')} L` : '-- L'}
+                </span>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${fuelPct}%`, backgroundColor: fuelColor }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 font-mono">
+                  {fuelCapacity > 0 ? `${fuelPct.toFixed(0)}% de ${fuelCapacity}L` : '--'}
+                </span>
+              </div>
+
+              {/* KM restantes com combustível */}
+              <MetricCard
+                icon="🏁"
+                label="KM p/ Esvaziar"
+                value={remainingKm > 0 ? `${remainingKm.toFixed(0)} km` : '-- km'}
+                color={remainingKm > 0 && remainingKm < autonomyKmPerL * 2 ? 'red' : 'emerald'}
+                highlight={remainingKm > 0 && remainingKm < autonomyKmPerL * 2}
+              />
+
+              {/* Litros consumidos no turno */}
+              <MetricCard
+                icon="💧"
+                label="Consumido (L)"
+                value={
+                  litrosBase > 0.05
+                    ? `${litrosBase.toFixed(1).replace('.', ',')} L`
                     : '-- L'
-              }
-              sub={combinedKm > 0 ? `em ${combinedKm.toFixed(1).replace('.', ',')} km` : undefined}
-              color="slate"
-            />
+                }
+                sub={gpsShiftKm > 0 ? `em ${gpsShiftKm.toFixed(1).replace('.', ',')} km` : undefined}
+                color="slate"
+              />
 
-            {/* Custo de reposição */}
-            <MetricCard
-              icon="💰"
-              label="Custo Repor"
-              value={
-                fuelCostEstimate != null && fuelCostEstimate > 0
-                  ? `R$ ${fuelCostEstimate.toFixed(2).replace('.', ',')}`
-                  : '-- '
-              }
-              color="cyan"
-            />
+              {/* Custo de reposição */}
+              <MetricCard
+                icon="💰"
+                label="Custo Repor"
+                value={
+                  fuelCostEstimate != null && fuelCostEstimate > 0
+                    ? `R$ ${fuelCostEstimate.toFixed(2).replace('.', ',')}`
+                    : '-- '
+                }
+                color="cyan"
+              />
+            </div>
           </div>
         </div>
 
