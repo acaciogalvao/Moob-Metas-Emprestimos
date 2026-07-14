@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, ArrowUpRight, ArrowDownRight, Wallet, Clipboard, 
@@ -13,7 +13,14 @@ import { Shift, Transaction } from '../types';
 import { playBeep, playCashRegister } from '../utils/audio';
 import { parseBRLInput, maskBRL, maskOdometer, parseOdometerInput, getPlatformBalanceDelta, getTransactionNetValue, formatDecimalBRL, calculateExtraValue, getTransactionFaturamentoReal, formatOdometer, formatBRL } from '../utils/format';
 import { PainelBordo } from './PainelBordo';
-import { VehicleModelId, MOTO_VEHICLE_MODEL_OPTIONS, getVehicleModelConsumptionKmL } from '../utils/vehicleModels';
+import {
+  VehicleModelId,
+  MOTO_VEHICLE_MODEL_OPTIONS,
+  getVehicleModelConsumptionKmL,
+  recordMottuSport110CalibrationSample,
+  getMottuSport110CalibrationFactor,
+  getMottuSport110CalibrationSampleCount,
+} from '../utils/vehicleModels';
 
 interface ShiftControlProps {
   activeShift: Shift | null;
@@ -155,6 +162,50 @@ export function ShiftControl({
     localStorage.setItem('moob_fuel_moto_model', modelId);
     playBeep();
   };
+
+  // ── Auto-calibração do modelo Mottu Sport 110 a cada abastecimento ────────
+  // Sempre que um novo lançamento de combustível com hodômetro é registrado,
+  // usa o km real percorrido desde o abastecimento/turno anterior + os litros
+  // colocados para medir o km/L real e ir ajustando o fator de calibração —
+  // sem qualquer ação manual do motorista.
+  const lastLearnedFuelTxIdRef = useRef<string | null>(null);
+  const [mottuCalibrationFactor, setMottuCalibrationFactor] = useState<number>(() => getMottuSport110CalibrationFactor());
+  const [mottuCalibrationSamples, setMottuCalibrationSamples] = useState<number>(() => getMottuSport110CalibrationSampleCount());
+
+  useEffect(() => {
+    if (fuelVehicleType !== 'MOTO' || motoModel !== 'MOTTU_SPORT_110') return;
+    if (!activeShift || !activeShift.transactions || activeShift.transactions.length === 0) return;
+
+    const fuelTxs = activeShift.transactions
+      .filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || (t.liters && t.liters > 0)) && t.odometer !== undefined && t.liters)
+      .sort((a, b) => (a.odometer || 0) - (b.odometer || 0));
+
+    if (fuelTxs.length === 0) return;
+    const lastFuelTx = fuelTxs[fuelTxs.length - 1];
+    if (lastFuelTx.id === lastLearnedFuelTxIdRef.current) return; // já aprendeu com este
+
+    const priorTx = fuelTxs.length > 1 ? fuelTxs[fuelTxs.length - 2] : null;
+    const priorOdo = priorTx ? priorTx.odometer : activeShift.initialOdometer;
+    const priorTimestamp = priorTx ? priorTx.timestamp : activeShift.openedAt;
+
+    if (priorOdo !== undefined && lastFuelTx.odometer !== undefined && lastFuelTx.odometer > priorOdo && lastFuelTx.liters) {
+      const legKm = lastFuelTx.odometer - priorOdo;
+      const legLiters = lastFuelTx.liters;
+      const measuredKmL = legKm / legLiters;
+      const elapsedHours = priorTimestamp
+        ? (new Date(lastFuelTx.timestamp).getTime() - new Date(priorTimestamp).getTime()) / 3_600_000
+        : 0;
+      const avgSpeedKmh = elapsedHours > 0 ? legKm / elapsedHours : 0;
+
+      if (measuredKmL > 0 && avgSpeedKmh > 0) {
+        const newFactor = recordMottuSport110CalibrationSample(measuredKmL, avgSpeedKmh);
+        setMottuCalibrationFactor(newFactor);
+        setMottuCalibrationSamples(getMottuSport110CalibrationSampleCount());
+      }
+    }
+
+    lastLearnedFuelTxIdRef.current = lastFuelTx.id;
+  }, [activeShift, fuelVehicleType, motoModel]);
 
   const [motoCapacity, setMotoCapacity] = useState<number>(() => {
     const v = localStorage.getItem('moob_fuel_moto_capacity');
@@ -711,6 +762,16 @@ export function ShiftControl({
           if (fuelVehicleType === 'CARRO') {
             setCarConsumption(exactCons);
             localStorage.setItem('moob_fuel_car_consumption', exactCons.toFixed(1));
+          } else if (motoModel === 'MOTTU_SPORT_110') {
+            // Modelo físico: em vez de sobrescrever um número fixo, o consumo exato
+            // do turno alimenta o aprendizado do fator de calibração da fórmula.
+            const elapsedHours = (Date.now() - new Date(activeShift.openedAt).getTime()) / 3_600_000;
+            const avgSpeedKmh = elapsedHours > 0 ? kmDriven / elapsedHours : 0;
+            if (avgSpeedKmh > 0) {
+              const newFactor = recordMottuSport110CalibrationSample(exactCons, avgSpeedKmh);
+              setMottuCalibrationFactor(newFactor);
+              setMottuCalibrationSamples(getMottuSport110CalibrationSampleCount());
+            }
           } else {
             setMotoConsumption(exactCons);
             localStorage.setItem('moob_fuel_moto_consumption', exactCons.toFixed(1));
@@ -1279,6 +1340,11 @@ export function ShiftControl({
                     {motoModel === 'MOTTU_SPORT_110' && fuelVehicleType === 'MOTO' && (
                       <p className="w-full text-[11px] text-slate-500 leading-relaxed -mt-1 mb-2 px-0.5">
                         Consumo calculado em tempo real pela velocidade do GPS (torque/potência do motor 110i), faixa 20-80 km/L.
+                        {mottuCalibrationSamples > 0 ? (
+                          <> Calibração automática ativa: <strong className="text-amber-400">{mottuCalibrationSamples}</strong> {mottuCalibrationSamples === 1 ? 'medição real' : 'medições reais'} de abastecimentos/turnos ajustaram o cálculo em <strong className="text-amber-400">{(mottuCalibrationFactor * 100 - 100) >= 0 ? '+' : ''}{((mottuCalibrationFactor - 1) * 100).toFixed(0)}%</strong>.</>
+                        ) : (
+                          <> A cada abastecimento e fechamento de caixa, o sistema aprende e ajusta esse cálculo automaticamente para o consumo real da sua moto.</>
+                        )}
                       </p>
                     )}
 

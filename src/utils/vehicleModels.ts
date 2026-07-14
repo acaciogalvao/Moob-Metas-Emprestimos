@@ -91,9 +91,78 @@ export function computeMottuSport110ConsumptionKmL(speedKmh: number): number {
 }
 
 /**
+ * Aprendizado contínuo (auto-calibração) do modelo Mottu Sport 110.
+ *
+ * A fórmula de torque/potência é apenas um ponto de partida (calibrada em
+ * laboratório para 70 km/h @ 4.500 RPM). Na prática, cada moto/motorista tem
+ * um desgaste, estilo de pilotagem e condição de uso diferentes, então o
+ * consumo real medido a cada abastecimento e a cada fechamento de caixa é
+ * usado para ir ajustando um "fator de calibração" multiplicativo sobre a
+ * fórmula física — sem exigir nenhuma ação manual do motorista.
+ */
+const MOTTU_110_CALIBRATION_FACTOR_KEY = 'moob_fuel_mottu110_calibration_factor';
+const MOTTU_110_CALIBRATION_SAMPLES_KEY = 'moob_fuel_mottu110_calibration_samples';
+const MOTTU_110_LEARNING_RATE = 0.25; // peso de cada nova medição real na média móvel
+const MOTTU_110_MIN_FACTOR = 0.5;
+const MOTTU_110_MAX_FACTOR = 2;
+
+export function getMottuSport110CalibrationFactor(): number {
+  const raw = localStorage.getItem(MOTTU_110_CALIBRATION_FACTOR_KEY);
+  const parsed = raw ? parseFloat(raw) : 1;
+  if (!isFinite(parsed) || parsed <= 0) return 1;
+  return Math.max(MOTTU_110_MIN_FACTOR, Math.min(MOTTU_110_MAX_FACTOR, parsed));
+}
+
+export function getMottuSport110CalibrationSampleCount(): number {
+  const raw = localStorage.getItem(MOTTU_110_CALIBRATION_SAMPLES_KEY);
+  const parsed = raw ? parseInt(raw, 10) : 0;
+  return isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Registra uma medição real de km/L (de um trecho entre abastecimentos, ou de
+ * um turno inteiro no fechamento de caixa) e ajusta o fator de calibração via
+ * média móvel ponderada — evita que um único dado ruim (ex.: hodômetro
+ * digitado errado) distorça tudo de uma vez, mas converge rápido para o
+ * consumo real do veículo/motorista ao longo dos abastecimentos.
+ */
+export function recordMottuSport110CalibrationSample(measuredKmL: number, avgSpeedKmh: number): number {
+  if (!measuredKmL || measuredKmL <= 0 || !avgSpeedKmh || avgSpeedKmh <= 0) {
+    return getMottuSport110CalibrationFactor();
+  }
+
+  const rawPredictedKmL = computeMottuSport110ConsumptionKmL(avgSpeedKmh);
+  if (!rawPredictedKmL || rawPredictedKmL <= 0) {
+    return getMottuSport110CalibrationFactor();
+  }
+
+  const measuredFactor = Math.max(
+    MOTTU_110_MIN_FACTOR,
+    Math.min(MOTTU_110_MAX_FACTOR, measuredKmL / rawPredictedKmL)
+  );
+
+  const currentFactor = getMottuSport110CalibrationFactor();
+  const newFactor = Math.max(
+    MOTTU_110_MIN_FACTOR,
+    Math.min(MOTTU_110_MAX_FACTOR, currentFactor * (1 - MOTTU_110_LEARNING_RATE) + measuredFactor * MOTTU_110_LEARNING_RATE)
+  );
+
+  localStorage.setItem(MOTTU_110_CALIBRATION_FACTOR_KEY, newFactor.toFixed(4));
+  localStorage.setItem(MOTTU_110_CALIBRATION_SAMPLES_KEY, String(getMottuSport110CalibrationSampleCount() + 1));
+
+  console.log(
+    `[Mottu110-Calibração] Novo dado real: ${measuredKmL.toFixed(1)} km/L a ~${avgSpeedKmh.toFixed(0)} km/h` +
+    ` → fator ${currentFactor.toFixed(3)} → ${newFactor.toFixed(3)}`
+  );
+
+  return newFactor;
+}
+
+/**
  * Retorna o consumo instantâneo (km/L) para um modelo de veículo, dado a
  * velocidade atual (km/h). Para 'MANUAL', retorna o valor configurado manualmente
- * (fallback) sem cálculo físico.
+ * (fallback) sem cálculo físico. Para 'MOTTU_SPORT_110', aplica o fator de
+ * calibração aprendido automaticamente a cada abastecimento/fechamento de caixa.
  */
 export function getVehicleModelConsumptionKmL(
   modelId: VehicleModelId,
@@ -101,8 +170,12 @@ export function getVehicleModelConsumptionKmL(
   manualFallbackKmL: number
 ): number {
   switch (modelId) {
-    case 'MOTTU_SPORT_110':
-      return computeMottuSport110ConsumptionKmL(speedKmh);
+    case 'MOTTU_SPORT_110': {
+      const model = VEHICLE_MODELS.MOTTU_SPORT_110;
+      const raw = computeMottuSport110ConsumptionKmL(speedKmh);
+      const calibrated = raw * getMottuSport110CalibrationFactor();
+      return Math.max(model.minConsumptionKmL, Math.min(model.maxConsumptionKmL, calibrated));
+    }
     case 'MANUAL':
     default:
       return manualFallbackKmL;
