@@ -106,7 +106,7 @@ export function AppShell() {
   } = useAppState();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 select-none relative overflow-x-hidden w-full max-w-[480px] mx-auto flex flex-col shadow-2xl md:border-x md:border-slate-800/60 md:shadow-amber-500/5">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 select-none relative overflow-x-hidden w-full flex flex-col shadow-2xl sm:max-w-[480px] sm:mx-auto md:border-x md:border-slate-800/60 md:shadow-amber-500/5">
 
       {/* Barra de navegação superior */}
       <AppNavbar
