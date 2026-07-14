@@ -1,11 +1,12 @@
 /**
- * useShiftGPS.ts — Hook GPS do turno com suporte a segundo plano.
+ * useShiftGPS.ts — Hodômetro GPS do turno. Nunca para durante o turno.
  *
- * Comportamento:
- *  - GPS inicia automaticamente ao abrir o caixa
- *  - Áudio silencioso + Wake Lock mantêm o GPS ativo com Uber/99 em foco
- *  - Se o GPS parou durante background (caso raro), estima km pelo tempo decorrido
- *  - GPS para automaticamente ao fechar o caixa
+ * Regras:
+ *  - GPS inicia quando caixa abre, para quando fecha — nunca no meio do turno
+ *  - Watchdog: se o watcher ficar 45s sem disparar, reinicia preservando os km já acumulados
+ *  - Keep-alive (áudio silencioso + Wake Lock) mantém GPS ativo com outro app em foco
+ *  - Se GPS parou durante background (raro), estima km pelo tempo × velocidade anterior
+ *  - km acumulado = TODO deslocamento real do turno (corridas + sem corrida)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -21,47 +22,50 @@ export interface ShiftGpsData {
   speedKmh: number;
   shiftKm: number;
   totalKm: number;
-  isActive: boolean;
+  isActive: boolean;        // true = GPS recebendo sinal
+  isStarting: boolean;      // true = GPS iniciando, ainda sem sinal
   accuracy: number | null;
-  isBackground: boolean;       // true = app está em segundo plano agora
-  isAudioActive: boolean;      // true = keep-alive de áudio rodando
+  isBackground: boolean;
+  isAudioActive: boolean;
   resetShiftKm: () => void;
 }
 
 export function useShiftGPS(isShiftOpen: boolean): ShiftGpsData {
-  const [speedKmh, setSpeedKmh] = useState(0);
-  const [shiftKm, setShiftKm]   = useState(0);
-  const [totalKm, setTotalKm]   = useState(0);
-  const [isActive, setIsActive] = useState(false);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [speedKmh, setSpeedKmh]   = useState(0);
+  const [shiftKm, setShiftKm]     = useState(0);
+  const [totalKm, setTotalKm]     = useState(0);
+  const [isActive, setIsActive]   = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [accuracy, setAccuracy]   = useState<number | null>(null);
 
-  const processorRef = useRef<GpsProcessorState>(gpsProcessorInit());
-  const watchIdRef   = useRef<number | null>(null);
+  const processorRef        = useRef<GpsProcessorState>(gpsProcessorInit());
+  const watchIdRef          = useRef<number | null>(null);
+  const lastGpsFireRef      = useRef<number>(0);       // epoch ms do último callback
+  const lastSpeedKmhRef     = useRef(0);
+  const gpsUpdatesInBgRef   = useRef(0);
+  const isShiftOpenRef      = useRef(false);           // para uso dentro de callbacks
 
-  // ── Keep-alive em segundo plano ───────────────────────────────────────────
+  useEffect(() => { isShiftOpenRef.current = isShiftOpen; }, [isShiftOpen]);
+
+  // ── Keep-alive em segundo plano ──────────────────────────────────────────
   const { isBackground, backgroundSince, isAudioActive } =
     useBackgroundKeepAlive(isShiftOpen);
 
-  // Refs para uso dentro dos callbacks do GPS (evita closures desatualizadas)
-  const isBackgroundRef     = useRef(false);
-  const backgroundSinceRef  = useRef<number | null>(null);
-  const lastSpeedKmhRef     = useRef(0);
-  const gpsUpdatesInBgRef   = useRef(0); // quantos updates GPS chegaram durante background
+  const isBackgroundRef    = useRef(false);
+  const backgroundSinceRef = useRef<number | null>(null);
 
-  // Sincroniza estado → refs
   useEffect(() => {
     isBackgroundRef.current    = isBackground;
     backgroundSinceRef.current = backgroundSince;
   }, [isBackground, backgroundSince]);
 
-  // Quando volta ao primeiro plano: verifica se precisa estimar km
+  // Quando volta ao primeiro plano: estima km se GPS parou no background
   useEffect(() => {
     if (!isBackground && backgroundSince !== null) {
       const elapsedHours = (Date.now() - backgroundSince) / 3_600_000;
       const speed = lastSpeedKmhRef.current;
 
       if (gpsUpdatesInBgRef.current === 0 && elapsedHours > 0.005 && speed > 3) {
-        // GPS não disparou durante background — estima km com o último speed conhecido
         const estimatedKm = speed * elapsedHours;
         processorRef.current = {
           ...processorRef.current,
@@ -71,70 +75,59 @@ export function useShiftGPS(isShiftOpen: boolean): ShiftGpsData {
         setShiftKm(processorRef.current.tripKm);
         setTotalKm(processorRef.current.totalKm);
         console.log(
-          `[ShiftGPS] GPS pausou no background — estimativa: +${estimatedKm.toFixed(3)} km` +
+          `[ShiftGPS] Estimativa background: +${estimatedKm.toFixed(3)} km` +
           ` (${(elapsedHours * 60).toFixed(1)} min × ${speed.toFixed(0)} km/h)`
         );
       } else {
-        console.log(
-          `[ShiftGPS] GPS continuou em background — ${gpsUpdatesInBgRef.current} updates recebidos.`
-        );
+        console.log(`[ShiftGPS] GPS OK em background — ${gpsUpdatesInBgRef.current} updates.`);
       }
-
       gpsUpdatesInBgRef.current = 0;
     }
   }, [isBackground, backgroundSince]);
 
-  // ── Para o GPS ────────────────────────────────────────────────────────────
-  const stopGps = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation?.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    setIsActive(false);
-    setSpeedKmh(0);
-    console.log('[ShiftGPS] GPS encerrado — caixa fechado.');
-  }, []);
-
-  // ── Inicia o GPS com watchPosition ───────────────────────────────────────
-  const startGps = useCallback(() => {
+  // ── Cria o watchPosition (interno, chamado por startGps e watchdog) ──────
+  // preserveKm = true → mantém km já acumulados (reinício do watchdog)
+  // preserveKm = false → turno novo, zera km
+  const attachWatcher = useCallback((preserveKm: boolean) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      console.warn('[ShiftGPS] Geolocalização não suportada neste dispositivo.');
+      console.warn('[ShiftGPS] Geolocalização não suportada.');
       return;
     }
-    if (watchIdRef.current !== null) return;
+    if (watchIdRef.current !== null) return; // já tem watcher
 
-    processorRef.current  = gpsProcessorInit();
-    lastSpeedKmhRef.current = 0;
-    gpsUpdatesInBgRef.current = 0;
-    setShiftKm(0);
-    setTotalKm(0);
-    setSpeedKmh(0);
-    setIsActive(false);
+    if (!preserveKm) {
+      processorRef.current    = gpsProcessorInit();
+      lastSpeedKmhRef.current = 0;
+      gpsUpdatesInBgRef.current = 0;
+      setShiftKm(0);
+      setTotalKm(0);
+      setSpeedKmh(0);
+      setIsActive(false);
+    }
 
-    console.log('[ShiftGPS] GPS ativado — caixa aberto.');
+    setIsStarting(true);
+    lastGpsFireRef.current = Date.now(); // evita watchdog disparar antes do primeiro ponto
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        // GPS ainda não parou — atualiza timestamp do watchdog
+        lastGpsFireRef.current = Date.now();
+
         const { latitude, longitude, speed, accuracy: acc } = pos.coords;
         const timestamp = pos.timestamp || Date.now();
 
-        // Conta updates recebidos enquanto está em background
-        if (isBackgroundRef.current) {
-          gpsUpdatesInBgRef.current++;
-        }
+        if (isBackgroundRef.current) gpsUpdatesInBgRef.current++;
 
         setAccuracy(acc);
+        setIsStarting(false);
 
         const result = processGpsPoint(processorRef.current, {
           timestamp, latitude, longitude, speed, accuracy: acc ?? undefined,
         });
 
-        if (result.discarded) {
-          console.warn('[ShiftGPS] Ponto GPS descartado — salto > 500m em 1s.');
-          return;
-        }
+        if (result.discarded) return;
 
-        processorRef.current = result.state;
+        processorRef.current    = result.state;
         lastSpeedKmhRef.current = result.speedKmh;
 
         setSpeedKmh(result.speedKmh);
@@ -152,32 +145,76 @@ export function useShiftGPS(isShiftOpen: boolean): ShiftGpsData {
         if (err.code !== err.TIMEOUT) {
           setSpeedKmh(0);
           setIsActive(false);
+          setIsStarting(false);
         }
       },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   }, []);
 
-  // ── Liga/desliga com base no caixa ────────────────────────────────────────
+  // ── Para o watcher (sem tocar nos km acumulados) ─────────────────────────
+  const detachWatcher = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation?.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  }, []);
+
+  // ── Para o GPS e reseta estado visual ───────────────────────────────────
+  const stopGps = useCallback(() => {
+    detachWatcher();
+    setIsActive(false);
+    setIsStarting(false);
+    setSpeedKmh(0);
+    console.log('[ShiftGPS] GPS encerrado — caixa fechado.');
+  }, [detachWatcher]);
+
+  // ── Liga/desliga com base no caixa ───────────────────────────────────────
   useEffect(() => {
     if (isShiftOpen) {
-      startGps();
+      attachWatcher(false); // turno novo — zera km
     } else {
       stopGps();
     }
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation?.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      detachWatcher();
     };
-  }, [isShiftOpen, startGps, stopGps]);
+  }, [isShiftOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Reseta km do turno sem interromper o GPS ──────────────────────────────
+  // ── Watchdog: reinicia watcher se ficar 45s sem disparar durante turno ──
+  useEffect(() => {
+    if (!isShiftOpen) return;
+
+    const WATCHDOG_INTERVAL_MS = 20_000; // checa a cada 20s
+    const STALE_THRESHOLD_MS   = 45_000; // considera morto após 45s sem sinal
+
+    const id = setInterval(() => {
+      if (!isShiftOpenRef.current) return;
+      const sinceLastFire = Date.now() - lastGpsFireRef.current;
+      if (sinceLastFire > STALE_THRESHOLD_MS) {
+        console.warn(
+          `[ShiftGPS] Watchdog: GPS inativo há ${Math.round(sinceLastFire / 1000)}s — reiniciando.`
+        );
+        detachWatcher();
+        setIsActive(false);
+        setIsStarting(true);
+        attachWatcher(true); // reinicia preservando km acumulados
+      }
+    }, WATCHDOG_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [isShiftOpen, attachWatcher, detachWatcher]);
+
+  // ── Reseta km do turno sem interromper o GPS ─────────────────────────────
   const resetShiftKm = useCallback(() => {
     processorRef.current = resetTripKm(processorRef.current);
     setShiftKm(0);
   }, []);
 
-  return { speedKmh, shiftKm, totalKm, isActive, accuracy, isBackground, isAudioActive, resetShiftKm };
+  return {
+    speedKmh, shiftKm, totalKm,
+    isActive, isStarting,
+    accuracy, isBackground, isAudioActive,
+    resetShiftKm,
+  };
 }

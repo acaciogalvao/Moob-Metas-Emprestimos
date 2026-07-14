@@ -69,24 +69,28 @@ export function PainelBordo({
   externalAccuracy,
   isGpsBackground = false,
 }: PainelBordoProps) {
+  // GPS do turno (useShiftGPS) é o hodômetro oficial quando o caixa está aberto.
+  // O GPS interno do PainelBordo só roda quando não há turno aberto (uso avulso).
+  const hasShift = !!activeShift;
+
   const [isActive, setIsActive] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [gpsSignal, setGpsSignal] = useState<GpsSignal>('SEM_SINAL');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsKm, setGpsKm] = useState(0);
-  const [tick, setTick] = useState(0); // force re-render a cada segundo
+  const [tick, setTick] = useState(0);
 
   const gpsWatchRef   = useRef<number | null>(null);
   const gpsStateRef   = useRef<GpsTrackerState>(gpsTrackerInit());
   const lastCoordRef  = useRef<{ lat: number; lng: number; time: number } | null>(null);
 
-  // ── relógio sempre ativo (independente do GPS) ───────────────────────────────
+  // ── Relógio sempre ativo ─────────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // ── GPS ─────────────────────────────────────────────────────────────────────
+  // ── GPS interno (só quando sem turno aberto) ─────────────────────────────────
   const startGPS = useCallback(() => {
     if (!navigator.geolocation) return;
     lastCoordRef.current = null;
@@ -97,14 +101,12 @@ export function PainelBordo({
         const { latitude, longitude, speed, accuracy } = pos.coords;
         const now = pos.timestamp ?? Date.now();
 
-        // Sinal GPS por precisão (metros)
         setGpsAccuracy(accuracy);
         if      (accuracy <= 15) setGpsSignal('EXCELENTE');
         else if (accuracy <= 35) setGpsSignal('BOM');
         else if (accuracy <= 55) setGpsSignal('FRACO');
         else                     setGpsSignal('SEM_SINAL');
 
-        // ── Acumula distância via Haversine (independente do Kalman) ──────────
         if (lastCoordRef.current) {
           const prev = lastCoordRef.current;
           const R_earth = 6371e3;
@@ -116,18 +118,15 @@ export function PainelBordo({
             Math.sin(dPhi / 2) ** 2 +
             Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
           const distM = R_earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          // Filtra jitter: só conta se accuracia boa e deslocamento crível
           if (accuracy <= 45 && distM > 1.2 && distM < 500) {
             setGpsKm(k => k + distM / 1000);
           }
         }
 
-        // ── Filtro de Kalman + fusão + limitador de aceleração + EMA ─────────
         const { speedKmh, state } = processGpsReading(gpsStateRef.current, {
           latitude, longitude, speed, accuracy, timestamp: now,
         });
         gpsStateRef.current = state;
-
         setCurrentSpeed(Math.min(MAX_SPEED, speedKmh));
         lastCoordRef.current = { lat: latitude, lng: longitude, time: now };
       },
@@ -145,11 +144,23 @@ export function PainelBordo({
     setGpsSignal('SEM_SINAL');
   }, []);
 
+  // Quando o turno abre: para o GPS interno imediatamente (o useShiftGPS assume)
+  // Quando o turno fecha: reseta o km interno
   useEffect(() => {
+    if (hasShift) {
+      setIsActive(false);
+      stopGPS();
+      setGpsKm(0);
+    }
+  }, [hasShift, stopGPS]);
+
+  // GPS interno só roda quando não há turno e o usuário ligou manualmente
+  useEffect(() => {
+    if (hasShift) return; // turno aberto → GPS interno nunca inicia
     if (isActive) startGPS();
     else stopGPS();
     return stopGPS;
-  }, [isActive, startGPS, stopGPS]);
+  }, [isActive, hasShift, startGPS, stopGPS]);
 
   // ── métricas ─────────────────────────────────────────────────────────────────
   const shiftMs = activeShift
@@ -267,21 +278,30 @@ export function PainelBordo({
               {vehicleType === 'CARRO' ? 'Carro' : 'Moto'}
             </button>
           )}
-          {/* GPS automático quando caixa está aberto — ou botão manual quando sem caixa */}
-          {isExternalGpsActive ? (
-            isGpsBackground ? (
-              /* App em segundo plano — GPS continua rodando via keep-alive de áudio */
-              <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-                GPS 2º plano
-              </span>
+          {/* ─ Badge GPS ─────────────────────────────────────────────────── */}
+          {hasShift ? (
+            /* Turno aberto: GPS é o hodômetro oficial — nunca tem botão de desligar */
+            isExternalGpsActive ? (
+              isGpsBackground ? (
+                <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  GPS 2º plano
+                </span>
+              ) : (
+                <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Hodômetro Ativo
+                </span>
+              )
             ) : (
-              <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                GPS Auto
+              /* Turno aberto mas GPS ainda sem sinal */
+              <span className="px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                GPS Iniciando…
               </span>
             )
           ) : (
+            /* Sem turno: botão manual para uso avulso do velocímetro */
             <button
               onClick={() => setIsActive(v => !v)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
