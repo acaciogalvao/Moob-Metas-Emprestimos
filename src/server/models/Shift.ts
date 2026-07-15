@@ -17,6 +17,7 @@ const transactionSchema = new mongoose.Schema({
   extraChargedValue: Number,
   keypadValue: Number,
   extraPaymentMethod: String,
+  tipValue: Number,
   isVirtual: Boolean,
   withdrawalFee: Number,
   liters: Number,
