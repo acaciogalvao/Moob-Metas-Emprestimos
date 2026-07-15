@@ -880,8 +880,10 @@ export function QuickRegister({
 
       let extra = 0;
       if (cleanValue <= 0) {
-        finalValue = parsedPassengerApp;
+        // Sem valor extra digitado na calculadora: o que vai pro Pix/Dinheiro é o que o app ofertou.
+        finalValue = parsedOffer;
       } else {
+        // Valor extra digitado: o que vai pro Pix/Dinheiro é exatamente o valor digitado na calculadora.
         finalValue = cleanValue;
       }
       extra = cleanValue > 0 ? calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp) : 0;
