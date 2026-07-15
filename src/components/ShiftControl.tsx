@@ -178,8 +178,17 @@ export function ShiftControl({
   const [mottuCalibrationFactor, setMottuCalibrationFactor] = useState<number>(() => getMottuSport110CalibrationFactor());
   const [mottuCalibrationSamples, setMottuCalibrationSamples] = useState<number>(() => getMottuSport110CalibrationSampleCount());
 
+  // Refs para leitura segura do consumo atual dentro do effect sem adicionar ao deps
+  const carConsumptionRef = useRef(carConsumption);
+  useEffect(() => { carConsumptionRef.current = carConsumption; }, [carConsumption]);
+  const motoConsumptionRef = useRef(motoConsumption);
+  useEffect(() => { motoConsumptionRef.current = motoConsumption; }, [motoConsumption]);
+
+  // ── Auto-calibração a cada abastecimento com hodômetro ────────────────────
+  // Mottu Sport 110: calibra o fator da fórmula física de torque/potência.
+  // Carro e Moto Manual: atualiza o km/L base via EMA (blend 60% atual + 40%
+  // medição real) e persiste no localStorage — próximo turno já começa correto.
   useEffect(() => {
-    if (fuelVehicleType !== 'MOTO' || motoModel !== 'MOTTU_SPORT_110') return;
     if (!activeShift || !activeShift.transactions || activeShift.transactions.length === 0) return;
 
     const fuelTxs = activeShift.transactions
@@ -203,10 +212,28 @@ export function ShiftControl({
         : 0;
       const avgSpeedKmh = elapsedHours > 0 ? legKm / elapsedHours : 0;
 
-      if (measuredKmL > 0 && avgSpeedKmh > 0) {
-        const newFactor = recordMottuSport110CalibrationSample(measuredKmL, avgSpeedKmh);
-        setMottuCalibrationFactor(newFactor);
-        setMottuCalibrationSamples(getMottuSport110CalibrationSampleCount());
+      if (fuelVehicleType === 'MOTO' && motoModel === 'MOTTU_SPORT_110') {
+        // Modelo físico: calibra o fator via amostras de velocidade × consumo
+        if (measuredKmL > 0 && avgSpeedKmh > 0) {
+          const newFactor = recordMottuSport110CalibrationSample(measuredKmL, avgSpeedKmh);
+          setMottuCalibrationFactor(newFactor);
+          setMottuCalibrationSamples(getMottuSport110CalibrationSampleCount());
+          console.log(`[Combustível] Mottu calibração: ${measuredKmL.toFixed(2)} km/L medido → fator ${newFactor.toFixed(3)}`);
+        }
+      } else if (measuredKmL > 5 && measuredKmL < 80) {
+        // Carro ou moto manual: blenda consumo atual (60%) com medição real (40%)
+        const ALPHA = 0.40;
+        if (fuelVehicleType === 'CARRO') {
+          const blended = parseFloat((carConsumptionRef.current * (1 - ALPHA) + measuredKmL * ALPHA).toFixed(1));
+          setCarConsumption(blended);
+          localStorage.setItem('moob_fuel_car_consumption', String(blended));
+          console.log(`[Combustível] Carro: ${measuredKmL.toFixed(2)} km/L medido → base atualizada para ${blended} km/L`);
+        } else {
+          const blended = parseFloat((motoConsumptionRef.current * (1 - ALPHA) + measuredKmL * ALPHA).toFixed(1));
+          setMotoConsumption(blended);
+          localStorage.setItem('moob_fuel_moto_consumption', String(blended));
+          console.log(`[Combustível] Moto manual: ${measuredKmL.toFixed(2)} km/L medido → base atualizada para ${blended} km/L`);
+        }
       }
     }
 
