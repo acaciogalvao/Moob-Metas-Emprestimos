@@ -576,10 +576,11 @@ export function ShiftControl({
     return sum;
   }, 0);
 
-  // appIn: only non-CORRIDA APP entries + tips (CORRIDA offer now lives in cashIn/pixIn)
+  // appIn: entradas APP — corridas (valor ofertado) + gorjetas de corridas + outras entradas APP
   const appIn = allInTransactions.filter(t => t.paymentMethod === 'APP').reduce((sum, t) => {
     if (t.category === 'CORRIDA') {
-      return sum; // Offer goes to Pix/Cash; tips are summed separately below
+      // O ofertado (tx.value para corridas APP) vai para o saldo do app; o extra vai para Pix/Dinheiro (cashIn/pixIn).
+      return sum + t.value;
     }
     const extra = (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'pix' || t.extraPaymentMethod === 'dinheiro')
       ? (t.extraChargedValue !== undefined
@@ -706,7 +707,7 @@ export function ShiftControl({
 
     const weeklyTotalGanhos = weeklyRides.reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
 
-    // For APP rides: main offer goes to Pix/Cash; only tips/cancellations go to app balance.
+    // Para corridas APP: o ofertado vai pro saldo do app; apenas o extra vai para Pix/Dinheiro.
     const weeklyGanhosDinheiro = weeklyRides.reduce((s, t) => {
       let sum = 0;
       if (t.paymentMethod === 'DINHEIRO' || t.paymentMethod === 'PIX') {
@@ -717,17 +718,19 @@ export function ShiftControl({
         }
       }
       if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'pix' || t.extraPaymentMethod === 'dinheiro')) {
-        // Main offer + extra both go to Pix/Cash for APP rides
-        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
-        sum += offer + (t.extraChargedValue !== undefined ? t.extraChargedValue : 0);
+        // Apenas o valor extra (acima do ofertado) vai para Pix/Dinheiro; o ofertado fica no saldo do app.
+        sum += (t.extraChargedValue !== undefined
+          ? t.extraChargedValue
+          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue));
       }
       return s + sum;
     }, 0);
 
     const weeklyGanhosApp = weeklyRides.reduce((s, t) => {
       if (t.paymentMethod === 'APP') {
-        // APP ride main value now goes to Pix/Cash; only tips count toward app balance
-        return s + (t.tipValue !== undefined && t.tipValue > 0 ? t.tipValue : 0);
+        // O valor ofertado pelo app SEMPRE vai para o saldo do app; gorjetas também.
+        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
+        return s + offer + (t.tipValue !== undefined && t.tipValue > 0 ? t.tipValue : 0);
       }
       return s;
     }, 0);
