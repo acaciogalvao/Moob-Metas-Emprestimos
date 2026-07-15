@@ -221,18 +221,17 @@ export function ShiftControl({
           console.log(`[Combustível] Mottu calibração: ${measuredKmL.toFixed(2)} km/L medido → fator ${newFactor.toFixed(3)}`);
         }
       } else if (measuredKmL > 5 && measuredKmL < 80) {
-        // Carro ou moto manual: blenda consumo atual (60%) com medição real (40%)
-        const ALPHA = 0.40;
+        // Carro ou moto manual: valor da fórmula é mantido se a medição confirma;
+        // se difere, substitui pelo valor exato medido no hodômetro.
+        const exact = parseFloat(measuredKmL.toFixed(1));
         if (fuelVehicleType === 'CARRO') {
-          const blended = parseFloat((carConsumptionRef.current * (1 - ALPHA) + measuredKmL * ALPHA).toFixed(1));
-          setCarConsumption(blended);
-          localStorage.setItem('moob_fuel_car_consumption', String(blended));
-          console.log(`[Combustível] Carro: ${measuredKmL.toFixed(2)} km/L medido → base atualizada para ${blended} km/L`);
+          setCarConsumption(exact);
+          localStorage.setItem('moob_fuel_car_consumption', String(exact));
+          console.log(`[Combustível] Carro: ${exact} km/L medido via hodômetro → base configurada`);
         } else {
-          const blended = parseFloat((motoConsumptionRef.current * (1 - ALPHA) + measuredKmL * ALPHA).toFixed(1));
-          setMotoConsumption(blended);
-          localStorage.setItem('moob_fuel_moto_consumption', String(blended));
-          console.log(`[Combustível] Moto manual: ${measuredKmL.toFixed(2)} km/L medido → base atualizada para ${blended} km/L`);
+          setMotoConsumption(exact);
+          localStorage.setItem('moob_fuel_moto_consumption', String(exact));
+          console.log(`[Combustível] Moto manual: ${exact} km/L medido via hodômetro → base configurada`);
         }
       }
     }
