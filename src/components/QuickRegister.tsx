@@ -901,7 +901,9 @@ export function QuickRegister({
         // pelo que foi digitado na calculadora). Qualquer valor digitado NA CALCULADORA acima do
         // ofertado é cobrado separadamente em Pix ou Dinheiro (extraChargedValue).
         finalValue = parsedOffer;
-        extra = cleanValue > 0 ? calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp) : 0;
+        // O valor digitado na calculadora principal É o extra cobrado separadamente
+        // (Pix ou Dinheiro). Não é o total — é exatamente o valor adicional fora do app.
+        extra = cleanValue > 0 ? cleanValue : 0;
       } else {
         // Não-APP (Pix/Dinheiro/Cartão): motorista recebe diretamente do passageiro.
         // O valor digitado na calculadora é o que foi efetivamente recebido.
