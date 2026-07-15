@@ -123,6 +123,12 @@ export function ShiftControl({
     direction: 'CASH_TO_PIX' | 'PIX_TO_CASH';
   } | null>(null);
 
+  const [debtPaymentModal, setDebtPaymentModal] = useState<{
+    platform: 'UBER' | '99';
+    maxAmount: number;
+    amount: string;
+  } | null>(null);
+
   // --- FUEL TRACKER PERSISTED STATES ---
   const [fuelVehicleType, setFuelVehicleType] = useState<'CARRO' | 'MOTO'>(() => {
     return vehicleType === 'CAR' ? 'CARRO' : 'MOTO';
@@ -609,11 +615,14 @@ export function ShiftControl({
 
   const uberBalanceDelta = ridesAndCancels.filter(t => t.platform === 'UBER').reduce((s, t) => s + getPlatformBalanceDelta(t), 0);
   const uberWithdrawals = transactions.filter(t => t.platform === 'UBER' && t.category === 'SAQUE_APP').reduce((s, t) => s + t.value, 0);
-  const uberBalance = (activeShift.initialUberBalance ?? 0) + uberBalanceDelta - uberWithdrawals;
+  // Quitação de saldo negativo: dinheiro pago (sempre via Pix) para zerar a dívida com a plataforma.
+  const uberDebtPayments = transactions.filter(t => t.platform === 'UBER' && t.category === 'QUITACAO_SALDO').reduce((s, t) => s + t.value, 0);
+  const uberBalance = (activeShift.initialUberBalance ?? 0) + uberBalanceDelta - uberWithdrawals + uberDebtPayments;
 
   const ninetyNineBalanceDelta = ridesAndCancels.filter(t => t.platform === '99').reduce((s, t) => s + getPlatformBalanceDelta(t), 0);
   const ninetyNineWithdrawals = transactions.filter(t => t.platform === '99' && t.category === 'SAQUE_APP').reduce((s, t) => s + t.value, 0);
-  const ninetyNineBalance = (activeShift.initial99Balance ?? 0) + ninetyNineBalanceDelta - ninetyNineWithdrawals;
+  const ninetyNineDebtPayments = transactions.filter(t => t.platform === '99' && t.category === 'QUITACAO_SALDO').reduce((s, t) => s + t.value, 0);
+  const ninetyNineBalance = (activeShift.initial99Balance ?? 0) + ninetyNineBalanceDelta - ninetyNineWithdrawals + ninetyNineDebtPayments;
 
   const uberKM = rides.filter(t => t.platform === 'UBER' && t.km !== undefined).reduce((s, t) => s + (t.km || 0), 0);
   const ninetyNineKM = rides.filter(t => t.platform === '99' && t.km !== undefined).reduce((s, t) => s + (t.km || 0), 0);
@@ -789,6 +798,45 @@ export function ShiftControl({
       fee: '0,00'
     });
     playBeep();
+  };
+
+  const handleInitiateDebtPayment = (platform: 'UBER' | '99', negativeBalance: number) => {
+    const maxAmount = Math.abs(negativeBalance);
+    setDebtPaymentModal({
+      platform,
+      maxAmount,
+      amount: maxAmount.toFixed(2).replace('.', ','),
+    });
+    playBeep();
+  };
+
+  const handleConfirmDebtPayment = () => {
+    if (!debtPaymentModal || !onAddTransaction) return;
+
+    const parsedAmount = parseBRLInput(debtPaymentModal.amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setErrorMsg('Valor de quitação inválido.');
+      setTimeout(() => setErrorMsg(null), 4000);
+      return;
+    }
+
+    if (parsedAmount > debtPaymentModal.maxAmount + 0.01) {
+      setErrorMsg('O valor não pode ser maior do que a dívida com a plataforma.');
+      setTimeout(() => setErrorMsg(null), 4000);
+      return;
+    }
+
+    onAddTransaction({
+      type: 'OUT',
+      platform: debtPaymentModal.platform,
+      category: 'QUITACAO_SALDO',
+      value: parsedAmount,
+      paymentMethod: 'PIX',
+      description: `Quitação de Saldo Negativo ${debtPaymentModal.platform === 'UBER' ? 'Uber' : '99'} (Pix)`,
+    });
+
+    setDebtPaymentModal(null);
+    playCashRegister();
   };
 
   const handleConfirmWithdrawal = () => {
@@ -2035,6 +2083,13 @@ export function ShiftControl({
                     >
                       <span>💸</span> SOLICITAR SAQUE
                     </button>
+                  ) : uberBalance < 0 && onAddTransaction ? (
+                    <button
+                      onClick={() => handleInitiateDebtPayment('UBER', uberBalance)}
+                      className="w-full sm:w-auto bg-rose-500 hover:bg-rose-450 active:scale-95 text-slate-950 font-black py-1.5 px-4 rounded-md text-[12.5px] uppercase tracking-wider cursor-pointer transition-all duration-150 shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20 flex items-center justify-center gap-1.5 select-none"
+                    >
+                      <span>⚡</span> QUITAR COM PIX
+                    </button>
                   ) : (
                     <span className="text-sm font-mono text-slate-600 font-bold uppercase tracking-tight text-center sm:text-right">
                       {uberBalance <= 0 ? 'Sem saldo para saque' : 'Função de saque indisponível'}
@@ -2194,6 +2249,13 @@ export function ShiftControl({
                       className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-450 active:scale-95 text-slate-950 font-black py-1.5 px-4 rounded-md text-[12.5px] uppercase tracking-wider cursor-pointer transition-all duration-150 shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 flex items-center justify-center gap-1.5 select-none"
                     >
                       <span>💸</span> SOLICITAR SAQUE
+                    </button>
+                  ) : ninetyNineBalance < 0 && onAddTransaction ? (
+                    <button
+                      onClick={() => handleInitiateDebtPayment('99', ninetyNineBalance)}
+                      className="w-full sm:w-auto bg-rose-500 hover:bg-rose-450 active:scale-95 text-slate-950 font-black py-1.5 px-4 rounded-md text-[12.5px] uppercase tracking-wider cursor-pointer transition-all duration-150 shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20 flex items-center justify-center gap-1.5 select-none"
+                    >
+                      <span>⚡</span> QUITAR COM PIX
                     </button>
                   ) : (
                     <span className="text-sm font-mono text-slate-600 font-bold uppercase tracking-tight text-center sm:text-right">
@@ -3970,6 +4032,92 @@ export function ShiftControl({
                     className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-2 px-3 rounded-lg text-[14px] uppercase transition-all shadow-md active:scale-97"
                   >
                     Confirmar Saque
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* debtPaymentModal UI */}
+        {debtPaymentModal && (
+          <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-5 relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-rose-500" />
+
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-black text-white font-sans uppercase tracking-tight flex items-center gap-1.5">
+                  <span>⚡</span> Quitar Saldo {debtPaymentModal.platform === 'UBER' ? 'Uber' : '99'}
+                </h3>
+                <button
+                  onClick={() => setDebtPaymentModal(null)}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Debt info banner */}
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850/80">
+                  <span className="text-[12px] uppercase font-bold text-slate-500 block mb-0.5">Dívida com a Plataforma</span>
+                  <span className="text-lg font-mono font-black text-rose-455">R$ {formatDecimalBRL(debtPaymentModal.maxAmount)}</span>
+                </div>
+
+                {/* Amount input */}
+                <div className="space-y-1">
+                  <label className="block text-[12.5px] font-bold text-slate-400 uppercase tracking-wider">
+                    Valor a Pagar
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono">R$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-9 pr-3 text-white text-base font-black font-mono focus:border-rose-500 focus:outline-none"
+                      placeholder="0,00"
+                      value={debtPaymentModal.amount}
+                      onChange={(e) => {
+                        const masked = maskBRL(e.target.value);
+                        setDebtPaymentModal(prev => prev ? { ...prev, amount: masked } : null);
+                      }}
+                    />
+                  </div>
+                  <span className="block text-[12px] text-slate-500 font-mono mt-0.5">
+                    O valor sai do seu saldo em Pix e zera (ou reduz) a dívida com a plataforma.
+                  </span>
+                </div>
+
+                {/* Fixed payment method info */}
+                <div className="bg-slate-955 p-2.5 rounded-lg border border-slate-850 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold uppercase text-[12px]">Sai de:</span>
+                  <span className="font-mono font-black text-amber-400 text-sm">⚡ Pix</span>
+                </div>
+
+                {errorMsg && (
+                  <div className="bg-rose-950/40 text-rose-455 border border-rose-900/50 p-2 rounded-lg text-center text-[12.5px] font-bold uppercase tracking-wide font-mono animate-pulse">
+                    ⚠️ {errorMsg}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    onClick={() => setDebtPaymentModal(null)}
+                    className="w-full bg-slate-950 hover:bg-slate-800 text-slate-400 font-bold py-2 px-3 rounded-lg text-[14px] uppercase border border-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmDebtPayment}
+                    className="w-full bg-rose-500 hover:bg-rose-600 text-white font-extrabold py-2 px-3 rounded-lg text-[14px] uppercase transition-all shadow-md active:scale-97"
+                  >
+                    Confirmar
                   </button>
                 </div>
               </div>

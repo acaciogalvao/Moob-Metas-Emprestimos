@@ -249,11 +249,14 @@ export function computeFinancialTotals(
 
   const uberBalanceDelta = ridesAndCancels.filter(t => t.platform === 'UBER').reduce((s, t) => s + getPlatformBalanceDelta(t), 0);
   const uberWithdrawals = activeTx.filter(t => t.platform === 'UBER' && t.category === 'SAQUE_APP').reduce((s, t) => s + t.value, 0);
-  const uberBalance = activeShift ? ((activeShift.initialUberBalance ?? 0) + uberBalanceDelta - uberWithdrawals) : 0;
+  // Quitação de saldo negativo: dinheiro pago (sempre via Pix) para zerar a dívida com a plataforma.
+  const uberDebtPayments = activeTx.filter(t => t.platform === 'UBER' && t.category === 'QUITACAO_SALDO').reduce((s, t) => s + t.value, 0);
+  const uberBalance = activeShift ? ((activeShift.initialUberBalance ?? 0) + uberBalanceDelta - uberWithdrawals + uberDebtPayments) : 0;
 
   const ninetyNineBalanceDelta = ridesAndCancels.filter(t => t.platform === '99').reduce((s, t) => s + getPlatformBalanceDelta(t), 0);
   const ninetyNineWithdrawals = activeTx.filter(t => t.platform === '99' && t.category === 'SAQUE_APP').reduce((s, t) => s + t.value, 0);
-  const ninetyNineBalance = activeShift ? ((activeShift.initial99Balance ?? 0) + ninetyNineBalanceDelta - ninetyNineWithdrawals) : 0;
+  const ninetyNineDebtPayments = activeTx.filter(t => t.platform === '99' && t.category === 'QUITACAO_SALDO').reduce((s, t) => s + t.value, 0);
+  const ninetyNineBalance = activeShift ? ((activeShift.initial99Balance ?? 0) + ninetyNineBalanceDelta - ninetyNineWithdrawals + ninetyNineDebtPayments) : 0;
 
   const saldosPlataformas = uberBalance + ninetyNineBalance;
 
