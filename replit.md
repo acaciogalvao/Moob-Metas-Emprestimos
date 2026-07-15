@@ -55,8 +55,8 @@ npm run build
 npm start
 ```
 
-## Setup status (2026-07-14)
-Project re-imported from GitHub; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) recreated, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. Gemini and Mercado Pago secrets still not provided, so those features remain non-functional until set.
+## Setup status (2026-07-15)
+Project re-imported from GitHub again; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) recreated, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. Gemini and Mercado Pago secrets still not provided, so those features remain non-functional until set.
 
 ## Automatic GPS calibration & offline-first persistence (2026-07-14)
 - Fuel-consumption calibration at shift close is now always automatic (`src/components/ShiftControl.tsx`) — the manual "calibrar veículo" checkbox was removed; the app always recalibrates km/L from odometer + fuel data when available.
