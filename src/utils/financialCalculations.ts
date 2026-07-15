@@ -4,7 +4,7 @@
  */
 
 import { Shift, Transaction, PeriodFilter } from '../types';
-import { getTransactionFaturamentoReal, getTransactionNetValue, calculateExtraValue, getPlatformBalanceDelta } from './format';
+import { getTransactionFaturamentoReal, calculateExtraValue, getPlatformBalanceDelta } from './format';
 
 /**
  * Filters all transactions across all shifts based on the given period filter.
@@ -264,20 +264,6 @@ export function computeFinancialTotals(
 
   const expectedGeral = rawIn - rawOut;
 
-  const totalNetIn = rides.reduce((s, t) => s + getTransactionNetValue(t), 0) + allInTransactions.filter(t => t.category !== 'CORRIDA' && t.category !== 'CAMBIO_PIX' && t.category !== 'CAMPANHA').reduce((s, t) => s + t.value, 0);
-  const saldoLiquido = totalNetIn - rawOut;
-
-  // Faturamento Bruto Real por corrida: o valor ofertado só conta quando pago direto
-  // (Pix/Dinheiro/Cartão); se pago "Direto no App", esse valor fica retido no saldo do app e só
-  // conta quando sacado (SAQUE_APP) — a gorjeta da corrida sempre conta, independente da forma
-  // de pagamento.
-  const rideOfertadoReal = (t: (typeof rides)[number]) => {
-    const tip = t.tipValue && t.tipValue > 0 ? t.tipValue : 0;
-    if (t.paymentMethod === 'APP') return tip;
-    const offer = t.appOfferValue !== undefined ? t.appOfferValue : (t.value - (t.extraChargedValue || 0));
-    return offer + tip;
-  };
-
   const cancels = activeTx.filter(t => t.type === 'IN' && t.category === 'CANCELAMENTO' && !t.isVirtual);
   const totalCancels = cancels.reduce((s, t) => s + t.value, 0);
   const cancelsCount = cancels.length;
@@ -293,14 +279,19 @@ export function computeFinancialTotals(
   const totalTips = totalIndependentTips + totalRideTips;
   const tipsCount = independentTipsCount + rideTipsCount;
 
+  // Faturamento Bruto Real = todo dinheiro ofertado pela app (UBER/99) + gorjetas + cancelamentos.
+  // Conta sempre, independente da forma de pagamento da corrida.
   const totalValoresOfertados = rides.reduce((s, t) => {
     if (t.platform === 'PARTICULAR') return s;
-    return s + rideOfertadoReal(t);
+    return s + getTransactionFaturamentoReal(t);
   }, 0) + totalCancels + totalIndependentTips;
 
-  const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + rideOfertadoReal(t), 0);
+  const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
 
-  const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + rideOfertadoReal(t), 0);
+  const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
+
+  // Faturamento Pós Despesas = Faturamento Bruto Real - Despesas Totais.
+  const saldoLiquido = totalValoresOfertados - rawOut;
 
   return {
     faturamentoBruto: rawIn + (activeShift?.ajusteSaldoAnterior || 0),
