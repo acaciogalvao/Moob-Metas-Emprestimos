@@ -342,15 +342,18 @@ export function getTransactionFaturamentoReal(tx: {
     return tx.value;
   }
 
+  // Gorjeta da corrida sempre conta como faturamento (independente da forma de pagamento da corrida).
+  const tip = tx.tipValue && tx.tipValue > 0 ? tx.tipValue : 0;
+
   // Pago "Direto no App": o valor ofertado fica retido no saldo do app (carteira virtual) e só
   // vira faturamento de fato quando for sacado (transação SAQUE_APP). Só o extra cobrado por
-  // fora (Pix/Dinheiro) é receita imediata.
+  // fora (Pix/Dinheiro) e a gorjeta são receita imediata.
   if (tx.paymentMethod === 'APP') {
-    return tx.extraChargedValue || 0;
+    return (tx.extraChargedValue || 0) + tip;
   }
 
-  // Faturamento Bruto Real = valor ofertado pela app
-  return tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value;
+  // Faturamento Bruto Real = valor ofertado pela app + gorjeta
+  return (tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value) + tip;
 }
 
 
