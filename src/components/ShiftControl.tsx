@@ -2598,15 +2598,21 @@ export function ShiftControl({
                                 </span>
                               </div>
 
-                              {/* Valor cobrado a mais pelo motorista */}
-                              {selectedTx.extraChargedValue !== undefined && selectedTx.extraChargedValue > 0 && (
-                                <div className="flex justify-between items-center text-amber-400 pb-1.5 mb-1.5 border-b border-dashed border-slate-800">
-                                  <span>(+) Cobrado por Fora (Extra):</span>
-                                  <span className="font-extrabold">
-                                    + R$ {formatDecimalBRL(selectedTx.extraChargedValue)}
-                                  </span>
-                                </div>
-                              )}
+                              {/* Valor cobrado a mais pelo motorista: mesma fórmula do card "Lucro Extra"
+                                  do dashboard — digitado na calculadora vs. valor ofertado pelo app —
+                                  vale pra qualquer forma de pagamento, não só extraChargedValue (que só
+                                  é preenchido para corridas "Direto no App"). */}
+                              {(() => {
+                                const extra = calculateExtraValue(selectedTx.keypadValue, selectedTx.appOfferValue, selectedTx.passengerAppValue);
+                                return extra > 0 ? (
+                                  <div className="flex justify-between items-center text-amber-400 pb-1.5 mb-1.5 border-b border-dashed border-slate-800">
+                                    <span>(+) Cobrado por Fora (Extra):</span>
+                                    <span className="font-extrabold">
+                                      + R$ {formatDecimalBRL(extra)}
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
                             </>
                           ) : (
                             <>
