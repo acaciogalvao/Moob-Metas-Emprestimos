@@ -897,13 +897,11 @@ export function QuickRegister({
 
       let extra = 0;
       if (paymentMethod === 'APP') {
-        // Corrida direto no app: o valor ofertado SEMPRE vai pro saldo do app (nunca é substituído
-        // pelo que foi digitado na calculadora). Qualquer valor digitado NA CALCULADORA acima do
-        // ofertado é cobrado separadamente em Pix ou Dinheiro (extraChargedValue).
+        // Corrida direto no app: o ofertado SEMPRE vai pro saldo do app.
+        // O extra = valor digitado na calculadora − valor ofertado (o que o
+        // passageiro pagou diretamente ao motorista, fora do app).
         finalValue = parsedOffer;
-        // O valor digitado na calculadora principal É o extra cobrado separadamente
-        // (Pix ou Dinheiro). Não é o total — é exatamente o valor adicional fora do app.
-        extra = cleanValue > 0 ? cleanValue : 0;
+        extra = extraAmount; // extraAmount = calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp)
       } else {
         // Não-APP (Pix/Dinheiro/Cartão): motorista recebe diretamente do passageiro.
         // O valor digitado na calculadora é o que foi efetivamente recebido.
