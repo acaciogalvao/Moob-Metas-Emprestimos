@@ -68,7 +68,8 @@ export function useAppState() {
 
   // ── GPS do turno ──────────────────────────────────────────────────────────
   const hasOpenShift = shifts.some(s => s.status === 'OPEN');
-  const shiftGps = useShiftGPS(hasOpenShift);
+  const activeShiftId = shifts.find(s => s.status === 'OPEN')?.id ?? null;
+  const shiftGps = useShiftGPS(hasOpenShift, activeShiftId);
 
   // ── PWA install ───────────────────────────────────────────────────────────
   const { pwaPrompt, handleInstallPWA } = usePwaInstall();
