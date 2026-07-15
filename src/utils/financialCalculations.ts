@@ -295,9 +295,11 @@ export function computeFinancialTotals(
 
   const particularRidesCount = rides.filter(t => t.platform === 'PARTICULAR').length;
 
-  // Faturamento Pós Despesas = Faturamento Bruto Real - Despesas Totais - Saldo nas Plataformas
-  // (dinheiro que ainda está "preso" nas carteiras virtuais Uber/99, ainda não sacado/na mão).
-  const saldoLiquido = totalValoresOfertados - rawOut - saldosPlataformas;
+  // Faturamento Pós Despesas = Faturamento Bruto Real - Despesas Totais - Saldo nas Plataformas.
+  // saldosPlataformas já vem com o sinal correto (negativo = dívida com o app, positivo = crédito
+  // preso na carteira virtual). Somar o valor assinado tem o mesmo efeito que subtrair a dívida:
+  // ex. bruto 25 - despesas 0 - saldo -4 (dívida de R$4) = 25 + (-4) = 21.
+  const saldoLiquido = totalValoresOfertados - rawOut + saldosPlataformas;
 
   return {
     faturamentoBruto: rawIn + (activeShift?.ajusteSaldoAnterior || 0),
