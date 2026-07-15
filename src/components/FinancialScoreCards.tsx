@@ -79,8 +79,8 @@ export function FinancialScoreCards({
           </div>
           <div className="flex justify-between text-slate-400 font-sans">
             <span>Saldo nas Plataformas:</span>
-            <span className={`font-bold ${financialTotals.saldosPlataformas >= 0 ? 'text-rose-450' : 'text-emerald-400'}`}>
-              {financialTotals.saldosPlataformas >= 0 ? '-' : '+'}R$ {formatDecimalBRL(Math.abs(financialTotals.saldosPlataformas))}
+            <span className={`font-bold ${financialTotals.saldosPlataformas < 0 ? 'text-rose-450' : 'text-emerald-400'}`}>
+              {financialTotals.saldosPlataformas < 0 ? '-' : ''}R$ {formatDecimalBRL(Math.abs(financialTotals.saldosPlataformas))}
             </span>
           </div>
         </div>
