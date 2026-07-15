@@ -533,12 +533,6 @@ export function QuickRegister({
     }
   }, [inputValue, fuelPrice, expenseCategory, txType]);
 
-  // Force payment method to 'APP' when cancellation fee is selected (goes directly to platform balance)
-  useEffect(() => {
-    if (txType === 'IN' && inType === 'CANCELAMENTO') {
-      setPaymentMethod('APP');
-    }
-  }, [txType, inType]);
 
   // Report the liters currently being typed into the refuel field to the parent so the
   // dashboard fuel gauge (ShiftControl) can move its needle live, even before the transaction is saved.
@@ -812,6 +806,13 @@ export function QuickRegister({
       return;
     }
 
+    if (txType === 'IN' && inType === 'CANCELAMENTO' && !paymentMethod) {
+      playErrorBeep();
+      setErrorMsg('Por favor, informe como recebeu a taxa de cancelamento (Pix, Dinheiro ou Direto no App)!');
+      setTimeout(() => setErrorMsg(null), 4000);
+      return;
+    }
+
     if ((txType === 'OUT' || txType === 'FUEL') && !paymentMethod) {
       playErrorBeep();
       setErrorMsg(`Por favor, informe a forma de pagamento ${txType === 'FUEL' ? 'do abastecimento' : 'da despesa'} (Pix ou Dinheiro)!`);
@@ -855,7 +856,7 @@ export function QuickRegister({
         platform,
         category: 'CANCELAMENTO',
         value: cleanValue,
-        paymentMethod: paymentMethod || 'APP',
+        paymentMethod: paymentMethod!,
         description: baseDesc,
         km: km ? parseKMInput(km, decimals) : undefined,
         isVirtual: false
@@ -2754,84 +2755,84 @@ export function QuickRegister({
               )}
             </label>
             
-            {txType === 'IN' && inType === 'CANCELAMENTO' ? (
-              <div className="p-3 bg-slate-900/80 border border-slate-800/90 rounded-xl flex items-start gap-3">
-                <div className="p-2.5 bg-amber-500/10 rounded-lg text-amber-500 text-lg shrink-0 mt-0.5">
-                  📱
-                </div>
-                <div>
-                  <span className="text-[14px] font-extrabold text-amber-500 block uppercase tracking-wider">
-                    Direto no Saldo do App / Plataforma
-                  </span>
-                  <p className="text-[13px] text-slate-400 leading-relaxed mt-0.5">
-                    Como é uma taxa de cancelamento, o valor entra diretamente na sua carteira virtual da plataforma <strong>{platform === 'UBER' ? 'Uber' : platform === '99' ? '99' : 'Particular'}</strong> e não no caixa físico.
+            <>
+              <div className={`grid ${txType === 'IN' && platform !== 'PARTICULAR' ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>
+                {[
+                  { key: 'PIX', label: 'Pix', emoji: '⚡' },
+                  { key: 'DINHEIRO', label: 'Dinheiro', emoji: '💵' },
+                  ...(txType === 'IN' && platform !== 'PARTICULAR' ? [{ key: 'APP', label: 'Direto no App', emoji: '📱' }] : []),
+                ].map((pay) => (
+                  <button
+                    key={pay.key}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(pay.key as PaymentMethod);
+                      playBeep();
+                    }}
+                    className={`py-2.5 px-1.5 rounded-xl text-center text-xs font-extrabold border transition-all flex flex-col items-center gap-1.5 shadow-sm ${
+                      paymentMethod === pay.key
+                        ? txType === 'IN' 
+                          ? 'bg-emerald-550/20 text-emerald-350 border-emerald-500 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
+                          : 'bg-rose-550/20 text-rose-350 border-rose-500 ring-1 ring-rose-500 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                        : 'bg-slate-800/90 text-slate-100 border-slate-700 hover:text-white hover:bg-slate-700'
+                    }`}
+                  >
+                    <span className="text-sm">{pay.emoji}</span>
+                    <span className="text-[12.5px] leading-tight font-sans">{pay.label}</span>
+                  </button>
+                ))}
+              </div>
+              {txType === 'IN' && inType === 'CANCELAMENTO' && paymentMethod === 'APP' && (
+                <div className="mt-2.5 p-2.5 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2">
+                  <span className="text-amber-500 text-base shrink-0">📱</span>
+                  <p className="text-[12.5px] text-slate-400 leading-relaxed">
+                    A taxa entra diretamente na sua carteira virtual da plataforma <strong className="text-amber-500">{platform === 'UBER' ? 'Uber' : platform === '99' ? '99' : 'Particular'}</strong> e não no caixa físico.
                   </p>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className={`grid ${txType === 'IN' && platform !== 'PARTICULAR' ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>
-                  {[
-                    { key: 'PIX', label: 'Pix', emoji: '⚡' },
-                    { key: 'DINHEIRO', label: 'Dinheiro', emoji: '💵' },
-                    ...(txType === 'IN' && platform !== 'PARTICULAR' ? [{ key: 'APP', label: 'Direto no App', emoji: '📱' }] : []),
-                  ].map((pay) => (
+              )}
+              {txType === 'IN' && inType === 'CANCELAMENTO' && (paymentMethod === 'PIX' || paymentMethod === 'DINHEIRO') && (
+                <div className="mt-2.5 p-2.5 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2">
+                  <span className="text-emerald-400 text-base shrink-0">{paymentMethod === 'PIX' ? '⚡' : '💵'}</span>
+                  <p className="text-[12.5px] text-slate-400 leading-relaxed">
+                    A taxa foi recebida direto do passageiro e entra no seu saldo de <strong className="text-emerald-400">{paymentMethod === 'PIX' ? 'Pix' : 'Dinheiro'}</strong>, não na carteira virtual da plataforma.
+                  </p>
+                </div>
+              )}
+              {paymentMethod === 'APP' && txType === 'IN' && inType === 'CORRIDA' && (
+                <div className="mt-2.5 p-2 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <span className="text-[14px] font-bold text-amber-500 block uppercase">💰 Como recebeu o valor?</span>
+                    <p className="text-[12.5px] text-slate-400 leading-tight mt-0.5">
+                      O valor digitado na calculadora vai para o saldo de Pix ou Dinheiro:
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0 self-stretch sm:sm:flex-initial">
                     <button
-                      key={pay.key}
                       type="button"
-                      onClick={() => {
-                        setPaymentMethod(pay.key as PaymentMethod);
-                        playBeep();
-                      }}
-                      className={`py-2.5 px-1.5 rounded-xl text-center text-xs font-extrabold border transition-all flex flex-col items-center gap-1.5 shadow-sm ${
-                        paymentMethod === pay.key
-                          ? txType === 'IN' 
-                            ? 'bg-emerald-550/20 text-emerald-350 border-emerald-500 ring-1 ring-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                            : 'bg-rose-550/20 text-rose-350 border-rose-500 ring-1 ring-rose-500 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
-                          : 'bg-slate-800/90 text-slate-100 border-slate-700 hover:text-white hover:bg-slate-700'
+                      onClick={() => { setExtraPaymentMethod('PIX'); playBeep(); }}
+                      className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-[14px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
+                        extraPaymentMethod === 'PIX'
+                          ? 'bg-emerald-550/20 text-emerald-400 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
                       }`}
                     >
-                      <span className="text-sm">{pay.emoji}</span>
-                      <span className="text-[12.5px] leading-tight font-sans">{pay.label}</span>
+                      ⚡ Pix
                     </button>
-                  ))}
-                </div>
-                {paymentMethod === 'APP' && txType === 'IN' && (
-                  <div className="mt-2.5 p-2 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <div>
-                      <span className="text-[14px] font-bold text-amber-500 block uppercase">💰 Como recebeu o valor?</span>
-                      <p className="text-[12.5px] text-slate-400 leading-tight mt-0.5">
-                        O valor digitado na calculadora vai para o saldo de Pix ou Dinheiro:
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5 shrink-0 self-stretch sm:sm:flex-initial">
-                      <button
-                        type="button"
-                        onClick={() => { setExtraPaymentMethod('PIX'); playBeep(); }}
-                        className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-[14px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
-                          extraPaymentMethod === 'PIX'
-                            ? 'bg-emerald-550/20 text-emerald-400 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
-                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-                        }`}
-                      >
-                        ⚡ Pix
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setExtraPaymentMethod('DINHEIRO'); playBeep(); }}
-                        className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-[14px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
-                          extraPaymentMethod === 'DINHEIRO'
-                            ? 'bg-emerald-550/20 text-emerald-400 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
-                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-                        }`}
-                      >
-                        💵 Dinheiro
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setExtraPaymentMethod('DINHEIRO'); playBeep(); }}
+                      className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-[14px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
+                        extraPaymentMethod === 'DINHEIRO'
+                          ? 'bg-emerald-550/20 text-emerald-400 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      💵 Dinheiro
+                    </button>
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
+            </>
           </div>
 
           {/* Collapsible details (KM run / custom notes) */}
@@ -3053,7 +3054,11 @@ export function QuickRegister({
             </div>
             {txType === 'IN' && inType === 'CANCELAMENTO' && (
               <span className="text-sm text-amber-500 font-bold block leading-none text-right mt-1 font-mono">
-                Taxa de cancelamento que entra direto no saldo geral
+                {paymentMethod === 'APP'
+                  ? "Taxa que entra direto no saldo do app"
+                  : paymentMethod === 'PIX' || paymentMethod === 'DINHEIRO'
+                    ? `Taxa recebida do passageiro (Entrada em ${paymentMethod === 'PIX' ? 'Pix' : 'Dinheiro'})`
+                    : "Taxa de cancelamento"}
               </span>
             )}
             {txType === 'IN' && inType === 'CORRIDA' && (platform === 'UBER' || platform === '99') && (

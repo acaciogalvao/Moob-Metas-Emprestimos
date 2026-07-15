@@ -195,8 +195,12 @@ export function getPlatformBalanceDelta(tx: {
 
   let delta = 0;
 
-  if (tx.category === 'CANCELAMENTO' || tx.category === 'GORJETA' || tx.category === 'CAMPANHA') {
+  if (tx.category === 'GORJETA' || tx.category === 'CAMPANHA') {
     delta = tx.value;
+  } else if (tx.category === 'CANCELAMENTO') {
+    // Taxa de cancelamento: só entra na carteira virtual da plataforma quando recebida
+    // "Direto no App". Se recebida em Pix/Dinheiro direto do passageiro, não afeta o saldo do app.
+    delta = tx.paymentMethod === 'APP' ? tx.value : 0;
   } else {
     const offer = tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value;
     const passenger = tx.passengerAppValue !== undefined ? tx.passengerAppValue : (tx.passengerValue !== undefined ? tx.passengerValue : tx.value);
