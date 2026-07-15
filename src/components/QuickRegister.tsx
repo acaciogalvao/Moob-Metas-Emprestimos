@@ -796,7 +796,9 @@ export function QuickRegister({
   const parsedOffer = appOfferInput ? parseBRLInput(appOfferInput) : 0;
   const parsedPassengerApp = passengerAppInput ? parseBRLInput(passengerAppInput) : 0;
   const hasExtra = txType === 'IN' && (platform === 'UBER' || platform === '99') && paymentMethod === 'APP' && cleanValue > 0 && parsedOffer > 0;
-  const extraAmount = hasExtra ? calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp) : 0;
+  // Para corridas APP, o valor digitado na calculadora É o extra (cobrado diretamente do passageiro).
+  // Não subtrai o ofertado — o ofertado vai pro saldo do app, o digitado vai pro Pix/Dinheiro integralmente.
+  const extraAmount = hasExtra ? cleanValue : 0;
 
   const triggerSubmit = () => {
     if (txType === 'IN' && inType === 'CORRIDA' && !paymentMethod) {
