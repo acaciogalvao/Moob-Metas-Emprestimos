@@ -35,6 +35,7 @@ export function useAppState() {
     saveToLocalStorage,
     queueCloudSync,
     isOnline,
+    isLoadingFromServer,
   } = useShiftPersistence();
 
   // ── Estado de UI ─────────────────────────────────────────────────────────
@@ -190,6 +191,7 @@ export function useAppState() {
     driverName,
     vehicleType,
     isOnline,
+    isLoadingFromServer,
 
     // UI
     selectedShiftForReport,

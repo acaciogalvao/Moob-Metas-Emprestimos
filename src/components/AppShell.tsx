@@ -103,10 +103,28 @@ export function AppShell() {
     handleToggleExcludeSundays,
     handleClearDbFields,
     handleToggleSpeedometer,
+    isLoadingFromServer,
   } = useAppState();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 select-none relative overflow-x-hidden w-full flex flex-col shadow-2xl sm:max-w-[480px] sm:mx-auto md:border-x md:border-slate-800/60 md:shadow-amber-500/5">
+
+      {/* Banner de carregamento do banco — aparece apenas no boot inicial */}
+      <AnimatePresence>
+        {isLoadingFromServer && (
+          <motion.div
+            key="db-loading-banner"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="w-full bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center gap-2"
+          >
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+            <span className="text-xs text-amber-300 font-medium">Sincronizando com o banco de dados…</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Barra de navegação superior */}
       <AppNavbar
