@@ -38,9 +38,12 @@ export function HistoryList({
   const activeConsumption = vehicleType === 'BIKE' ? motoConsumption : carConsumption;
 
   const fuelTxs = transactions.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0);
-  const averagePricePerLiter = fuelTxs.length > 0 
-    ? fuelTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fuelTxs.length 
-    : 5.89; // fallback standard price per liter
+  // Custo de reposição usa o preço do ÚLTIMO abastecimento (não uma média histórica) —
+  // é o valor que o motorista realmente pagaria pra reabastecer agora.
+  const lastFuelTx = fuelTxs.length > 0
+    ? [...fuelTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+    : undefined;
+  const averagePricePerLiter = lastFuelTx?.pricePerLiter || 5.89; // fallback standard price per liter
 
   const periodOptions: { key: PeriodFilter; label: string }[] = [
     { key: 'HOJE', label: 'Hoje' },
@@ -804,7 +807,7 @@ export function HistoryList({
                           </div>
 
                           <div className="flex justify-between text-slate-400">
-                            <span>Preço Médio do Litro (Shift):</span>
+                            <span>Último Preço do Litro:</span>
                             <span className="font-mono text-slate-300">R$ {formatDecimalBRL(averagePricePerLiter)}/L</span>
                           </div>
 
@@ -826,7 +829,7 @@ export function HistoryList({
 
                     {/* Pro tip or disclaimer */}
                     <div className="text-[12.5px] text-slate-500 font-sans leading-relaxed pt-1.5 border-t border-slate-850 border-dashed">
-                      💡 <strong>Métrica de Combustível Real:</strong> Calculada com base no consumo configurado para seu veículo (<strong>{typeof activeConsumption === 'number' ? activeConsumption.toFixed(2).replace('.', ',') : activeConsumption} km/L</strong>) e preço médio real de abastecimentos de <strong>R$ {formatDecimalBRL(averagePricePerLiter)}/L</strong>.
+                      💡 <strong>Métrica de Combustível Real:</strong> Calculada com base no consumo configurado para seu veículo (<strong>{typeof activeConsumption === 'number' ? activeConsumption.toFixed(2).replace('.', ',') : activeConsumption} km/L</strong>) e no preço do último abastecimento de <strong>R$ {formatDecimalBRL(averagePricePerLiter)}/L</strong>.
                     </div>
                   </div>
                 ) : (

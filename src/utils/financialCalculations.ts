@@ -143,15 +143,20 @@ export function computeRefuelMetrics(shifts: Shift[], vehicleType: 'CAR' | 'BIKE
     avgAutonomy = vehicleType === 'CAR' ? 12 : 35;
   }
 
-  // 4. Average Price per Liter
+  // 4. Preço do litro para o custo de reposição: usa o valor do ÚLTIMO abastecimento
+  // registrado (o mais recente por data/hora), não uma média histórica — o preço da
+  // bomba muda com frequência, então o que vale pra estimar o custo de reabastecer
+  // agora é o preço mais recente que o motorista realmente pagou.
   const fuelTransactions = shifts.flatMap(s => s.transactions).filter(
     t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.category === 'combustivel' || (t.liters !== undefined && t.liters > 0)) && t.pricePerLiter && t.pricePerLiter > 0
   );
   let avgPricePerLiter = 5.50;
   if (fuelTransactions.length > 0) {
-    const validPrices = fuelTransactions.map(t => t.pricePerLiter || 0).filter(p => p > 0);
-    if (validPrices.length > 0) {
-      avgPricePerLiter = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+    const mostRecent = [...fuelTransactions].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
+    if (mostRecent.pricePerLiter && mostRecent.pricePerLiter > 0) {
+      avgPricePerLiter = mostRecent.pricePerLiter;
     }
   }
 

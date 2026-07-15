@@ -2639,9 +2639,12 @@ export function ShiftControl({
                         (() => {
                           const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
                           const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
-                          const avgPrice = fTxs.length > 0 
-                            ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
-                            : 5.89;
+                          // Custo de reposição usa o preço do ÚLTIMO abastecimento (não uma média
+                          // histórica) — é o valor que o motorista realmente pagaria pra reabastecer agora.
+                          const lastFuelTx = fTxs.length > 0
+                            ? [...fTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+                            : undefined;
+                          const avgPrice = lastFuelTx?.pricePerLiter || 5.89;
                           const costPerKm = avgPrice / activeCons;
                           const rideFuelCost = (selectedTx.km || 0) * costPerKm;
 
@@ -2666,7 +2669,7 @@ export function ShiftControl({
                               </div>
 
                               <div className="flex justify-between text-slate-400">
-                                <span>Preço Médio do Litro (Shift):</span>
+                                <span>Último Preço do Litro:</span>
                                 <span className="font-mono text-slate-300">R$ {formatDecimalBRL(avgPrice)}/L</span>
                               </div>
 
@@ -2693,11 +2696,13 @@ export function ShiftControl({
                       {(() => {
                         const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
                         const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
-                        const avgPrice = fTxs.length > 0 
-                          ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
-                          : 5.89;
+                        // Mesmo critério do bloco acima: usa o preço do último abastecimento, não a média.
+                        const lastFuelTx = fTxs.length > 0
+                          ? [...fTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+                          : undefined;
+                        const avgPrice = lastFuelTx?.pricePerLiter || 5.89;
                         return (
-                          <span>💡 <strong>Métrica de Combustível Real:</strong> Calculada com base no consumo configurado para seu veículo (<strong>{typeof activeCons === 'number' ? activeCons.toFixed(2).replace('.', ',') : activeCons} km/L</strong>) e preço médio real de abastecimentos de <strong>R$ {formatDecimalBRL(avgPrice)}/L</strong>.</span>
+                          <span>💡 <strong>Métrica de Combustível Real:</strong> Calculada com base no consumo configurado para seu veículo (<strong>{typeof activeCons === 'number' ? activeCons.toFixed(2).replace('.', ',') : activeCons} km/L</strong>) e no preço do último abastecimento de <strong>R$ {formatDecimalBRL(avgPrice)}/L</strong>.</span>
                         );
                       })()}
                     </div>
