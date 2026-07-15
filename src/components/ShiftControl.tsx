@@ -1017,10 +1017,17 @@ export function ShiftControl({
     : totalKmRun;
   const fuelConsumed = activeConsumption > 0 ? (displayKmRun / activeConsumption) : 0;
 
+  // GPS e odômetro/corridas medem a MESMA distância do turno por métodos diferentes.
+  // Usa a maior das duas estimativas (GPS costuma cobrir também trechos sem corrida)
+  // para que os litros consumidos calculados aqui fiquem na mesma base de km que o
+  // PainelBordo usa no cálculo do "consumo real" — senão o km/L exibido lá diverge
+  // do km/L configurado/calibrado do veículo.
+  const kmForFuelCalc = Math.max(displayKmRun, gpsShiftKm || 0);
+
   // Real-time metrics for current active shift
   const displayKm = refuelMetrics ? (refuelMetrics.isCurrentShift ? displayKmRun : refuelMetrics.kmDriven) : 0;
   const displayAutonomy = refuelMetrics ? (refuelMetrics.isCurrentShift ? activeConsumption : refuelMetrics.avgAutonomy) : 0;
-  const displayLiters = refuelMetrics ? (refuelMetrics.isCurrentShift ? (activeConsumption > 0 ? (displayKmRun / activeConsumption) : 0) : refuelMetrics.recommendedLiters) : 0;
+  const displayLiters = refuelMetrics ? (refuelMetrics.isCurrentShift ? (activeConsumption > 0 ? (kmForFuelCalc / activeConsumption) : 0) : refuelMetrics.recommendedLiters) : 0;
   const displayCost = refuelMetrics ? (refuelMetrics.isCurrentShift ? (displayLiters * (refuelMetrics.avgPricePerLiter || 5.50)) : refuelMetrics.estimatedCost) : 0;
 
   return (

@@ -176,8 +176,11 @@ export function PainelBordo({
   // km do turno vindos exclusivamente do GPS (não mistura com odômetro de transações)
   const gpsShiftKm = isExternalGpsActive ? (externalShiftKm ?? 0) : gpsKm;
 
-  // combinedKm: odômetro de transações + GPS — usado para cálculos de combustível
-  const combinedKm = totalKmRun + gpsShiftKm;
+  // combinedKm: melhor estimativa de distância do turno para cálculos de combustível.
+  // GPS e odômetro de transações medem a MESMA distância por métodos diferentes —
+  // somar os dois contava a viagem duas vezes e inflava o km/L exibido. Usa o maior
+  // dos dois (GPS normalmente é mais completo pois cobre também trechos sem corrida).
+  const combinedKm = Math.max(totalKmRun, gpsShiftKm);
 
   // Velocidade média: usa GPS quando disponível, cai para km de transações como
   // fallback imediato (evita "-- km/h" no início do turno ou após reload).
