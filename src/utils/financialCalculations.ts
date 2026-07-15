@@ -260,21 +260,23 @@ export function computeFinancialTotals(
 
   const saldosPlataformas = uberBalance + ninetyNineBalance;
 
-  // Usa o mesmo fallback aplicado em cashIn/pixIn acima: quando a corrida não tem
-  // extraChargedValue gravado explicitamente, calcula a partir do valor digitado no
-  // teclado vs. o valor ofertado pelo app — senão corridas antigas/sem esse campo
-  // salvo apareciam com R$ 0,00 de extra mesmo tendo cobrado por fora.
-  const getRideExtra = (t: Transaction) =>
-    t.extraChargedValue !== undefined
-      ? t.extraChargedValue
-      : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-  const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getRideExtra(t), 0);
-  const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getRideExtra(t), 0);
-  // Corridas particulares são sempre pagas em Pix ou Dinheiro direto ao motorista (sem "oferta" de
-  // app por trás), então seu valor integral é Faturamento Bruto Real — não "extra" — e é somado
-  // logo abaixo em totalValoresOfertados, não aqui.
-  const valoresExtrasParticular = 0;
-  const totalValoresExtras = valoresExtrasUber + valoresExtras99;
+  // "Lucro Extra" (card do dashboard): quanto o motorista digitou na calculadora
+  // acima do valor que o app ofertou pela corrida — em TODAS as formas de
+  // pagamento (Direto no App, Pix ou Dinheiro), não só "Direto no App".
+  // Importante: isso é só uma métrica informativa, separada do extraChargedValue
+  // usado em getTransactionFaturamentoReal/cashIn/pixIn (que só existe para
+  // corridas "Direto no App", pois ali o valor ofertado e o extra realmente saem
+  // por vias diferentes). Aqui recalcula sempre a partir de keypadValue/appOfferValue/
+  // passengerAppValue, então funciona tanto para corridas novas quanto antigas.
+  const getRideExtraDisplay = (t: Transaction) =>
+    calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
+  const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getRideExtraDisplay(t), 0);
+  const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getRideExtraDisplay(t), 0);
+  // Corridas particulares não têm "oferta do app" (são combinadas direto com o passageiro),
+  // então calculateExtraValue naturalmente retorna 0 quando não há appOfferValue — mas soma
+  // aqui do mesmo jeito para o caso de existir esse dado no futuro.
+  const valoresExtrasParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + getRideExtraDisplay(t), 0);
+  const totalValoresExtras = valoresExtrasUber + valoresExtras99 + valoresExtrasParticular;
 
   const expectedGeral = rawIn - rawOut;
 

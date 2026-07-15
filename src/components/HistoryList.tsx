@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Transaction, PlatformType, PeriodFilter, PaymentMethod } from '../types';
 import { playBeep } from '../utils/audio';
-import { formatDecimalBRL, getTransactionFaturamentoReal } from '../utils/format';
+import { formatDecimalBRL, getTransactionFaturamentoReal, calculateExtraValue } from '../utils/format';
 
 interface HistoryListProps {
   transactions: Transaction[];
@@ -714,7 +714,11 @@ export function HistoryList({
                       </div>
 
                       {(selectedTx.platform === 'UBER' || selectedTx.platform === '99') ? (() => {
-                        const extra = selectedTx.extraChargedValue || 0;
+                        // Mesma fórmula usada no card "Lucro Extra" do dashboard: digitado na
+                        // calculadora vs. valor ofertado pelo app — vale para qualquer forma de
+                        // pagamento (Direto no App, Pix ou Dinheiro), não só extraChargedValue
+                        // (que só é preenchido para corridas "Direto no App").
+                        const extra = calculateExtraValue(selectedTx.keypadValue, selectedTx.appOfferValue, selectedTx.passengerAppValue);
                         const gorjeta = selectedTx.tipValue || 0;
                         const offer = selectedTx.appOfferValue !== undefined ? selectedTx.appOfferValue : (selectedTx.value - extra - gorjeta);
                         const passenger = selectedTx.passengerAppValue !== undefined ? selectedTx.passengerAppValue : (selectedTx.passengerValue !== undefined ? selectedTx.passengerValue : offer);
