@@ -505,7 +505,10 @@ export function ShiftControl({
   const ninetyNineIn = rides.filter(t => t.platform === '99' && t.paymentMethod !== 'APP').reduce((s, t) => s + t.value, 0);
   
   // Breakdown of income categories based on values entered in the calculator.
-  // For APP rides (CORRIDA): the main typed value goes to Pix/Cash based on extraPaymentMethod.
+  // For "Direto no App" rides (CORRIDA paid via APP): the offer amount is always credited to the
+  // platform's virtual wallet (saldo do app) — it never touches Pix/Dinheiro. Only the extra amount
+  // typed on top of the offer (when the driver charges something extra in person) goes to Pix/Dinheiro,
+  // based on extraPaymentMethod. If nothing extra was typed, nothing goes to Pix/Dinheiro for that ride.
   // Tips and cancellations always go to the platform (app) balance.
   const cashIn = allInTransactions.reduce((sum, t) => {
     if (t.paymentMethod === 'DINHEIRO') {
@@ -513,15 +516,7 @@ export function ShiftControl({
       return sum + (t.value - fee);
     }
     if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'dinheiro')) {
-      if (t.category === 'CORRIDA') {
-        // Main ride offer + extra both go to cash balance
-        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
-        const extra = t.extraChargedValue !== undefined
-          ? t.extraChargedValue
-          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-        return sum + offer + extra;
-      }
-      // Non-CORRIDA APP entries (e.g. cancellations via override) — keep existing behaviour
+      // Only the extra amount (beyond the app offer) goes to cash — the offer itself stays in the app balance.
       const extra = t.extraChargedValue !== undefined
         ? t.extraChargedValue
         : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
@@ -536,14 +531,7 @@ export function ShiftControl({
       return sum + (t.value - fee);
     }
     if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'pix')) {
-      if (t.category === 'CORRIDA') {
-        // Main ride offer + extra both go to pix balance
-        const offer = t.appOfferValue !== undefined ? t.appOfferValue : t.value;
-        const extra = t.extraChargedValue !== undefined
-          ? t.extraChargedValue
-          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-        return sum + offer + extra;
-      }
+      // Only the extra amount (beyond the app offer) goes to pix — the offer itself stays in the app balance.
       const extra = t.extraChargedValue !== undefined
         ? t.extraChargedValue
         : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
