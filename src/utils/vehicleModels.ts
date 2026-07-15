@@ -21,22 +21,29 @@ export interface VehicleModelDefinition {
   idleConsumptionKmL: number;
 }
 
-// ── Mottu Sport 110 ──────────────────────────────────────────────────────────
-// Calibration point: 70 km/h ≈ 51,5 km/L (dentro da faixa real 50-55 km/L).
-const MOTTU_110_CALIBRATION_SPEED_KMH = 70;
+// ── Mottu Sport 110 2025 ─────────────────────────────────────────────────────
+// Motor: 109,1 cc monocilíndrico (base Honda CG 110), 4 tempos, injeção eletrônica.
+// Consumo real confirmado pelo operador em uso cidade: 55-60 km/L.
+// Ponto de calibração escolhido: 50 km/h (cruzeiro típico em cidade com paradas),
+// alvo = 57,5 km/L (ponto médio da faixa 55-60 km/L confirmada).
+const MOTTU_110_CALIBRATION_SPEED_KMH = 50;
 
-// Consumo de combustível em L/h = perda de marcha-lenta (fixa) + termo quadrático
-// de arrasto/aceleração (crescente com a velocidade). Isso faz o km/L SUBIR conforme
-// a velocidade sai de perto de zero (tráfego parado/andando bem devagar é o cenário
-// menos econômico: o motor ainda gasta combustível de marcha-lenta enquanto pouquíssima
-// distância é percorrida), atingir um pico numa velocidade de cruzeiro moderada, e
-// depois CAIR de novo em velocidades altas (arrasto aerodinâmico). Sem o termo de
-// marcha-lenta, a fórmula antiga (só potência ∝ velocidade²) dava km/L ∝ 1/velocidade,
-// que diverge para velocidades baixas e ficava presa no teto do clamp (80 km/L) bem
-// abaixo dos 70 km/h — ou seja, mostrava a moto "andando devagar" mais econômica que
-// parada, o que é fisicamente ao contrário do esperado.
-const MOTTU_110_IDLE_LPH = 0.5;
-const MOTTU_110_CALIBRATION_TARGET_KML = 51.5;
+// Modelo de consumo: L/h = consumo de marcha-lenta (fixo, independente da velocidade)
+//                        + coeficiente de arrasto × velocidade²
+//
+// Isso produz uma curva em "sino" fisicamente correta:
+//  • Pior em velocidades muito baixas (tráfego parado/rastejar): motor gasta combustível
+//    de marcha-lenta enquanto avança pouquíssima distância → km/L baixo.
+//  • Pico de eficiência em ~46 km/h (cruzeiro suave cidade): equilíbrio ótimo.
+//  • Degrada acima do pico pelo aumento de arrasto aerodinâmico.
+//
+// Coeficiente de arrasto (b) derivado para que Lph(50 km/h) = 50/57,5 = 0,8696 L/h:
+//   b = (0,8696 − idleLph) / 50² = 0,4696 / 2500 ≈ 0,00018783
+//
+// Resultados nas velocidades de uso do operador (cidade 20-60 km/h):
+//   20 km/h → ~42 km/L | 30 km/h → ~53 | 40 km/h → ~57 | 50 km/h → 57,5 | 60 km/h → ~56
+const MOTTU_110_IDLE_LPH = 0.4;       // L/h no marcha-lenta: típico 110cc injeção ≈ 0,35-0,45 L/h
+const MOTTU_110_CALIBRATION_TARGET_KML = 57.5;
 const MOTTU_110_DRAG_COEFFICIENT =
   (MOTTU_110_CALIBRATION_SPEED_KMH / MOTTU_110_CALIBRATION_TARGET_KML - MOTTU_110_IDLE_LPH) /
   (MOTTU_110_CALIBRATION_SPEED_KMH * MOTTU_110_CALIBRATION_SPEED_KMH);
@@ -52,27 +59,24 @@ export const VEHICLE_MODELS: Record<VehicleModelId, VehicleModelDefinition> = {
   },
   MOTTU_SPORT_110: {
     id: 'MOTTU_SPORT_110',
-    label: 'Mottu Sport 110',
+    label: 'Mottu Sport 110 (2025)',
     type: 'MOTO',
-    // Faixa real de consumo da Mottu 110i: 50-55 km/L; margem de segurança 20-80 km/L.
+    // Faixa real confirmada pelo operador em cidade: 55-60 km/L.
+    // min: valor realista em tráfego muito parado (rastejar)/subida; max: downhill/vento a favor.
     minConsumptionKmL: 20,
-    maxConsumptionKmL: 80,
-    idleConsumptionKmL: 51.5,
+    maxConsumptionKmL: 65,
+    idleConsumptionKmL: 57.5, // mostrado ao parar — ponto médio da faixa real do operador
   },
 };
 
 /**
- * Fórmula de consumo da Mottu Sport 110 baseada em L/h = perda de marcha-lenta fixa +
- * termo de arrasto/aceleração quadrático com a velocidade:
+ * Fórmula de consumo da Mottu Sport 110 2025.
  *
- *   Consumo_L_h = MOTTU_110_IDLE_LPH + MOTTU_110_DRAG_COEFFICIENT × velocidade²
- *   Consumo_km_L = velocidade / Consumo_L_h
+ *   L/h = MOTTU_110_IDLE_LPH + MOTTU_110_DRAG_COEFFICIENT × velocidade²
+ *   km/L = velocidade / L/h
  *
- * O coeficiente de arrasto é calibrado para que, a 70 km/h, o resultado seja ~51,5 km/L
- * (dentro da faixa real de 50-55 km/L da Mottu 110i). Isso dá uma curva em forma de sino:
- * pior (menos km/L) andando bem devagar — porque a marcha-lenta consome combustível
- * quase independente da distância percorrida —, melhor numa velocidade de cruzeiro
- * moderada (~50-55 km/h), e pior de novo em velocidade alta (arrasto).
+ * Calibrada com dados reais do operador: 57,5 km/L a 50 km/h (cruzeiro cidade),
+ * pico de ~57,7 km/L em ~46 km/h. Clampada entre 20 e 65 km/L.
  */
 export function computeMottuSport110ConsumptionKmL(speedKmh: number): number {
   const model = VEHICLE_MODELS.MOTTU_SPORT_110;
