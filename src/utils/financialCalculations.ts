@@ -267,21 +267,16 @@ export function computeFinancialTotals(
   const totalNetIn = rides.reduce((s, t) => s + getTransactionNetValue(t), 0) + allInTransactions.filter(t => t.category !== 'CORRIDA' && t.category !== 'CAMBIO_PIX' && t.category !== 'CAMPANHA').reduce((s, t) => s + t.value, 0);
   const saldoLiquido = totalNetIn - rawOut;
 
-  const totalValoresOfertados = rides.reduce((s, t) => {
-    if (t.platform === 'PARTICULAR') return s;
+  // Faturamento Bruto Real por corrida: o valor ofertado só conta quando pago direto
+  // (Pix/Dinheiro/Cartão); se pago "Direto no App", esse valor fica retido no saldo do app e só
+  // conta quando sacado (SAQUE_APP) — a gorjeta da corrida sempre conta, independente da forma
+  // de pagamento.
+  const rideOfertadoReal = (t: (typeof rides)[number]) => {
+    const tip = t.tipValue && t.tipValue > 0 ? t.tipValue : 0;
+    if (t.paymentMethod === 'APP') return tip;
     const offer = t.appOfferValue !== undefined ? t.appOfferValue : (t.value - (t.extraChargedValue || 0));
-    return s + offer;
-  }, 0);
-
-  const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => {
-    const offer = t.appOfferValue !== undefined ? t.appOfferValue : (t.value - (t.extraChargedValue || 0));
-    return s + offer;
-  }, 0);
-
-  const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => {
-    const offer = t.appOfferValue !== undefined ? t.appOfferValue : (t.value - (t.extraChargedValue || 0));
-    return s + offer;
-  }, 0);
+    return offer + tip;
+  };
 
   const cancels = activeTx.filter(t => t.type === 'IN' && t.category === 'CANCELAMENTO' && !t.isVirtual);
   const totalCancels = cancels.reduce((s, t) => s + t.value, 0);
@@ -297,6 +292,15 @@ export function computeFinancialTotals(
 
   const totalTips = totalIndependentTips + totalRideTips;
   const tipsCount = independentTipsCount + rideTipsCount;
+
+  const totalValoresOfertados = rides.reduce((s, t) => {
+    if (t.platform === 'PARTICULAR') return s;
+    return s + rideOfertadoReal(t);
+  }, 0) + totalCancels + totalIndependentTips;
+
+  const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + rideOfertadoReal(t), 0);
+
+  const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + rideOfertadoReal(t), 0);
 
   return {
     faturamentoBruto: rawIn + (activeShift?.ajusteSaldoAnterior || 0),
