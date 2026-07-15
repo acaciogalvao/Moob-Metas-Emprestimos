@@ -254,11 +254,18 @@ export function getTransactionNetValue(tx: {
     return tx.value;
   }
 
-  // appOfferValue = valor ofertado pela app (o que o motorista recebe da plataforma)
-  const offer = tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value;
-
   // extraChargedValue = extra cobrado diretamente ao passageiro (por fora — via Pix ou dinheiro)
   const extra = tx.extraChargedValue || 0;
+
+  // Pago "Direto no App": o valor ofertado fica retido no saldo do app (carteira virtual) e só
+  // vira faturamento de fato quando for sacado (transação SAQUE_APP). Só o extra cobrado por
+  // fora (Pix/Dinheiro) é receita imediata.
+  if (tx.paymentMethod === 'APP') {
+    return extra;
+  }
+
+  // appOfferValue = valor ofertado pela app (o que o motorista recebe da plataforma)
+  const offer = tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value;
 
   // Faturamento Pós Despesas = valor ofertado + extra por fora
   return offer + extra;
@@ -318,6 +325,7 @@ export function formatDecimalBRL(val: number): string {
 export function getTransactionFaturamentoReal(tx: {
   type: string;
   platform: string;
+  paymentMethod?: string;
   value: number;
   passengerValue?: number;
   appOfferValue?: number;
@@ -332,6 +340,13 @@ export function getTransactionFaturamentoReal(tx: {
   }
   if (tx.platform !== 'UBER' && tx.platform !== '99') {
     return tx.value;
+  }
+
+  // Pago "Direto no App": o valor ofertado fica retido no saldo do app (carteira virtual) e só
+  // vira faturamento de fato quando for sacado (transação SAQUE_APP). Só o extra cobrado por
+  // fora (Pix/Dinheiro) é receita imediata.
+  if (tx.paymentMethod === 'APP') {
+    return tx.extraChargedValue || 0;
   }
 
   // Faturamento Bruto Real = valor ofertado pela app
