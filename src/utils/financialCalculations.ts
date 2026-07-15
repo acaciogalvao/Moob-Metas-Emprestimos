@@ -260,8 +260,16 @@ export function computeFinancialTotals(
 
   const saldosPlataformas = uberBalance + ninetyNineBalance;
 
-  const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
-  const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
+  // Usa o mesmo fallback aplicado em cashIn/pixIn acima: quando a corrida não tem
+  // extraChargedValue gravado explicitamente, calcula a partir do valor digitado no
+  // teclado vs. o valor ofertado pelo app — senão corridas antigas/sem esse campo
+  // salvo apareciam com R$ 0,00 de extra mesmo tendo cobrado por fora.
+  const getRideExtra = (t: Transaction) =>
+    t.extraChargedValue !== undefined
+      ? t.extraChargedValue
+      : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
+  const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getRideExtra(t), 0);
+  const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getRideExtra(t), 0);
   // Corridas particulares são sempre pagas em Pix ou Dinheiro direto ao motorista (sem "oferta" de
   // app por trás), então seu valor integral é Faturamento Bruto Real — não "extra" — e é somado
   // logo abaixo em totalValoresOfertados, não aqui.
