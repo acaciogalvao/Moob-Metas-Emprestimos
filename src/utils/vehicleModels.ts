@@ -185,3 +185,30 @@ export function getVehicleModelConsumptionKmL(
 export const MOTO_VEHICLE_MODEL_OPTIONS: VehicleModelDefinition[] = Object.values(VEHICLE_MODELS).filter(
   (m) => m.type === 'MOTO'
 );
+
+/**
+ * Consumo ESTÁVEL (km/L) para contabilidade de combustível (marcador do tanque, km/L
+ * "real" do Painel de Bordo, custo de combustível por corrida, litros sugeridos ao
+ * abastecer, etc.).
+ *
+ * Diferente de getVehicleModelConsumptionKmL, NÃO depende da velocidade instantânea do
+ * GPS — usa sempre a velocidade de calibração de referência do modelo. Isso evita que
+ * o km/L "real" exibido para o motorista suba/desça a cada leitura do velocímetro; ele
+ * só muda quando o fator de calibração aprendido é atualizado (a cada abastecimento ou
+ * fechamento de turno com divergência entre o previsto e o medido).
+ *
+ * O cálculo por velocidade instantânea (getVehicleModelConsumptionKmL) continua existindo
+ * só para o mostrador "consumo em tempo real" — informativo, não usado em contabilidade.
+ */
+export function getStableVehicleModelConsumptionKmL(
+  modelId: VehicleModelId,
+  manualFallbackKmL: number
+): number {
+  switch (modelId) {
+    case 'MOTTU_SPORT_110':
+      return getVehicleModelConsumptionKmL(modelId, MOTTU_110_CALIBRATION_SPEED_KMH, manualFallbackKmL);
+    case 'MANUAL':
+    default:
+      return manualFallbackKmL;
+  }
+}

@@ -17,6 +17,7 @@ import {
   VehicleModelId,
   MOTO_VEHICLE_MODEL_OPTIONS,
   getVehicleModelConsumptionKmL,
+  getStableVehicleModelConsumptionKmL,
   recordMottuSport110CalibrationSample,
   getMottuSport110CalibrationFactor,
   getMottuSport110CalibrationSampleCount,
@@ -949,10 +950,15 @@ export function ShiftControl({
   const totalKmRun = ridesWithKm.reduce((s, t) => s + (t.km || 0), 0);
   const ridesWithKmCount = ridesWithKm.length;
   
-  // Consumo dinâmico da moto: se um modelo físico estiver selecionado, o km/L é
-  // recalculado a cada leitura de velocidade do GPS do turno; senão usa o valor manual.
+  // Consumo instantâneo da moto: varia a cada leitura de velocidade do GPS — só para o
+  // mostrador informativo "🏍️ Modelo" (tempo real), NUNCA para contabilidade de
+  // combustível/km-L real (senão o tanque e o km/L exibido oscilam junto com o velocímetro).
   const dynamicMotoConsumption = getVehicleModelConsumptionKmL(motoModel, gpsSpeedKmh || 0, motoConsumption);
-  const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
+  // Consumo ESTÁVEL da moto: usado em toda a contabilidade (tanque, km/L real, custo de
+  // combustível por corrida, litros sugeridos ao abastecer). Só muda com a calibração
+  // aprendida a cada abastecimento/fechamento de turno — nunca com a velocidade atual.
+  const stableMotoConsumption = getStableVehicleModelConsumptionKmL(motoModel, motoConsumption);
+  const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
   const activeCapacity = fuelVehicleType === 'CARRO' ? carCapacity : motoCapacity;
 
   // Litros de combustível abastecidos durante o turno
@@ -2631,7 +2637,7 @@ export function ShiftControl({
                       {/* KM rodado metrics */}
                       {selectedTx.km !== undefined && selectedTx.km > 0 && (
                         (() => {
-                          const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
+                          const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
                           const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
                           const avgPrice = fTxs.length > 0 
                             ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
@@ -2685,7 +2691,7 @@ export function ShiftControl({
                     {/* Pro tip or disclaimer */}
                     <div className="text-[12.5px] text-slate-505 font-sans leading-relaxed pt-1.5 border-t border-slate-850 border-dashed">
                       {(() => {
-                        const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
+                        const activeCons = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
                         const fTxs = activeShift?.transactions?.filter(t => t.type === 'OUT' && (t.category === 'COMBUSTIVEL' || t.pricePerLiter !== undefined) && t.pricePerLiter !== undefined && t.pricePerLiter > 0) || [];
                         const avgPrice = fTxs.length > 0 
                           ? fTxs.reduce((sum, t) => sum + (t.pricePerLiter || 0), 0) / fTxs.length 
@@ -3196,7 +3202,7 @@ export function ShiftControl({
                               const endOdo = parseOdometerInput(masked);
                               if (endOdo !== undefined && endOdo >= idxOdo) {
                                 const kmDriven = endOdo - idxOdo;
-                                const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : dynamicMotoConsumption;
+                                const activeConsumption = fuelVehicleType === 'CARRO' ? carConsumption : stableMotoConsumption;
                                 
                                 const fuelTxLiters = activeShift?.transactions
                                   ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
