@@ -47,8 +47,17 @@ export function FinancialScoreCards({
             </span>
             <strong className="text-amber-400 font-bold">{financialTotals.ninetyNineRidesCount} corr.</strong>
           </div>
+          {financialTotals.particularRidesCount > 0 && (
+            <div className="flex justify-between text-slate-400">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                Particular:
+              </span>
+              <strong className="text-emerald-400 font-bold">{financialTotals.particularRidesCount} corr.</strong>
+            </div>
+          )}
           <div className="text-[11px] text-slate-400 font-sans mt-1.5 border-t border-slate-800/40 pt-1">
-            Valor bruto total entrado no turno
+            Valor bruto total entrado no turno (Uber, 99 e particulares em Pix/Dinheiro)
           </div>
         </div>
       </div>

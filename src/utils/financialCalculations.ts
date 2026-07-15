@@ -259,8 +259,11 @@ export function computeFinancialTotals(
 
   const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
   const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + (t.extraChargedValue || 0), 0);
-  const valoresExtrasParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + t.value, 0);
-  const totalValoresExtras = valoresExtrasUber + valoresExtras99 + valoresExtrasParticular;
+  // Corridas particulares são sempre pagas em Pix ou Dinheiro direto ao motorista (sem "oferta" de
+  // app por trás), então seu valor integral é Faturamento Bruto Real — não "extra" — e é somado
+  // logo abaixo em totalValoresOfertados, não aqui.
+  const valoresExtrasParticular = 0;
+  const totalValoresExtras = valoresExtrasUber + valoresExtras99;
 
   const expectedGeral = rawIn - rawOut;
 
@@ -279,16 +282,18 @@ export function computeFinancialTotals(
   const totalTips = totalIndependentTips + totalRideTips;
   const tipsCount = independentTipsCount + rideTipsCount;
 
-  // Faturamento Bruto Real = todo dinheiro ofertado pela app (UBER/99) + gorjetas + cancelamentos.
+  // Faturamento Bruto Real = todo dinheiro ofertado pela app (UBER/99) + corridas particulares
+  // (sempre recebidas em Pix ou Dinheiro) + gorjetas + cancelamentos.
   // Conta sempre, independente da forma de pagamento da corrida.
-  const totalValoresOfertados = rides.reduce((s, t) => {
-    if (t.platform === 'PARTICULAR') return s;
-    return s + getTransactionFaturamentoReal(t);
-  }, 0) + totalCancels + totalIndependentTips;
+  const totalValoresOfertados = rides.reduce((s, t) => s + getTransactionFaturamentoReal(t), 0) + totalCancels + totalIndependentTips;
 
   const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
 
   const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
+
+  const valoresOfertadosParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
+
+  const particularRidesCount = rides.filter(t => t.platform === 'PARTICULAR').length;
 
   // Faturamento Pós Despesas = Faturamento Bruto Real - Despesas Totais.
   const saldoLiquido = totalValoresOfertados - rawOut;
@@ -308,12 +313,14 @@ export function computeFinancialTotals(
     cashExpenses: cashOut,
     uberRidesCount: rides.filter(t => t.platform === 'UBER').length,
     ninetyNineRidesCount: rides.filter(t => t.platform === '99').length,
+    particularRidesCount,
     saldoInicialPeriodo: totalInitialBalance,
     saldoGeral: expectedGeral,
     saldosPlataformas,
     totalValoresOfertados,
     valoresOfertadosUber,
     valoresOfertados99,
+    valoresOfertadosParticular,
     totalValoresExtras,
     valoresExtrasUber,
     valoresExtras99,
