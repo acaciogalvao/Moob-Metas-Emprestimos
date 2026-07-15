@@ -203,7 +203,10 @@ export function computeFinancialTotals(
   const uberIn = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
   const ninetyNineIn = rides.filter(t => t.platform === '99').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
 
+  // Tips (t.tipValue) and independent GORJETA entries always go straight to the platform (app)
+  // balance — never to Pix/Dinheiro — for every ride type (normal Pix/Dinheiro or Direto no App).
   const cashIn = allInTransactions.reduce((sum, t) => {
+    if (t.category === 'GORJETA') return sum;
     if (t.paymentMethod === 'DINHEIRO') {
       const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
       return sum + (t.value - fee);
@@ -218,6 +221,7 @@ export function computeFinancialTotals(
   }, 0);
 
   const pixIn = allInTransactions.reduce((sum, t) => {
+    if (t.category === 'GORJETA') return sum;
     if (t.paymentMethod === 'PIX') {
       const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
       return sum + (t.value - fee);

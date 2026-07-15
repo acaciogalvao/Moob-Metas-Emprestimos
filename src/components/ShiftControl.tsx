@@ -509,8 +509,10 @@ export function ShiftControl({
   // platform's virtual wallet (saldo do app) — it never touches Pix/Dinheiro. Only the extra amount
   // typed on top of the offer (when the driver charges something extra in person) goes to Pix/Dinheiro,
   // based on extraPaymentMethod. If nothing extra was typed, nothing goes to Pix/Dinheiro for that ride.
-  // Tips and cancellations always go to the platform (app) balance.
+  // Tips (t.tipValue) and independent GORJETA entries are NEVER part of Pix/Dinheiro — they always go
+  // straight to the platform (app) balance, for every ride type (normal Pix/Dinheiro or Direto no App).
   const cashIn = allInTransactions.reduce((sum, t) => {
+    if (t.category === 'GORJETA') return sum;
     if (t.paymentMethod === 'DINHEIRO') {
       const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
       return sum + (t.value - fee);
@@ -526,6 +528,7 @@ export function ShiftControl({
   }, 0);
 
   const pixIn = allInTransactions.reduce((sum, t) => {
+    if (t.category === 'GORJETA') return sum;
     if (t.paymentMethod === 'PIX') {
       const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
       return sum + (t.value - fee);

@@ -198,7 +198,10 @@ export function useShiftActions({
     const getExpectedPocketCashForShift = (shift: Shift) => {
       const allInTransactions = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
       const expenses = shift.transactions.filter(t => t.type === 'OUT');
+      // Tips and independent GORJETA entries always go straight to the platform (app) balance —
+      // never to Pix/Dinheiro — for every ride type (normal Pix/Dinheiro or Direto no App).
       const cashIn = allInTransactions.reduce((sum, t) => {
+        if (t.category === 'GORJETA') return sum;
         if (t.paymentMethod === 'DINHEIRO') {
           const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
           return sum + (t.value - fee);
@@ -220,6 +223,7 @@ export function useShiftActions({
       const allInTransactions = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
       const expenses = shift.transactions.filter(t => t.type === 'OUT');
       const pixIn = allInTransactions.reduce((sum, t) => {
+        if (t.category === 'GORJETA') return sum;
         if (t.paymentMethod === 'PIX') {
           const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
           return sum + (t.value - fee);
