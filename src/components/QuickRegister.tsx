@@ -9,6 +9,7 @@ import { Coins, Plus, Minus, Check, HelpCircle, Delete, Fuel, MessageSquare, Map
 import { PlatformType, TransactionType, PaymentMethod, Shift } from '../types';
 import { playBeep, playCashRegister, playErrorBeep } from '../utils/audio';
 import { parseBRLInput, maskBRL, maskKM, parseKMInput, maskOdometer, parseOdometerInput, formatOdometer, formatDecimalBRL, calculateExtraValue } from '../utils/format';
+import { computeFinancialTotals } from '../utils/financialCalculations';
 
 // Helper to mask fuel price (2 decimal places)
 function maskFuelPrice(value: string): string {
@@ -816,6 +817,21 @@ export function QuickRegister({
       setErrorMsg(`Por favor, informe a forma de pagamento ${txType === 'FUEL' ? 'do abastecimento' : 'da despesa'} (Pix ou Dinheiro)!`);
       setTimeout(() => setErrorMsg(null), 4000);
       return;
+    }
+
+    // Bloqueia a despesa se não houver saldo suficiente na forma de pagamento escolhida (Pix ou Dinheiro).
+    if ((txType === 'OUT' || txType === 'FUEL') && (paymentMethod === 'PIX' || paymentMethod === 'DINHEIRO') && activeShift) {
+      const expenseValue = cleanValue;
+      if (!isNaN(expenseValue) && expenseValue > 0) {
+        const financialTotals = computeFinancialTotals(activeShift, 'REGISTER', []);
+        const availableBalance = paymentMethod === 'PIX' ? financialTotals.expectedPixBalance : financialTotals.expectedPocketCash;
+        if (expenseValue > availableBalance) {
+          playErrorBeep();
+          setErrorMsg(`Saldo insuficiente em ${paymentMethod === 'PIX' ? 'Pix' : 'Dinheiro'} (disponível: R$ ${formatDecimalBRL(Math.max(0, availableBalance))}). A despesa não pode ser lançada.`);
+          setTimeout(() => setErrorMsg(null), 5000);
+          return;
+        }
+      }
     }
 
     let finalValue = cleanValue;
