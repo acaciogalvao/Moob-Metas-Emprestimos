@@ -70,8 +70,8 @@ export function FinancialScoreCards({
         </div>
         <div className="text-[12px] text-slate-500 mt-2 font-mono leading-none flex flex-col gap-1.5 border-t border-slate-800/80 pt-2 shrink-0">
           <div className="flex justify-between text-slate-400">
-            <span>Ofertado + Extra:</span>
-            <span className="text-emerald-400 font-semibold">R$ {formatDecimalBRL(financialTotals.totalValoresOfertados + financialTotals.totalValoresExtras)}</span>
+            <span>Faturamento Bruto Real:</span>
+            <span className="text-emerald-400 font-semibold">R$ {formatDecimalBRL(financialTotals.totalValoresOfertados)}</span>
           </div>
           <div className="flex justify-between text-slate-400 font-sans">
             <span>Despesas op.:</span>

@@ -309,9 +309,11 @@ export function formatDecimalBRL(val: number): string {
 
 /**
  * Calcula o Faturamento Bruto Real de uma transação de entrada.
- * Fórmula: Faturamento Bruto Real = valor ofertado pela app (appOfferValue) + gorjeta da corrida.
- * Conta sempre, independente da forma de pagamento (Pix/Dinheiro/Cartão/Direto no App) —
- * o valor ofertado é receita do turno assim que a corrida é registrada.
+ * Fórmula: Faturamento Bruto Real = valor total entrado na corrida (tx.value — que já inclui
+ * qualquer valor cobrado por fora/extra em Pix ou Dinheiro além do ofertado pelo app) + gorjeta.
+ * Conta sempre, sem nenhum desconto, independente da forma de pagamento (Pix/Dinheiro/Cartão/
+ * Direto no App) — é exatamente o valor mostrado como "Faturamento Real Entrado (Bruto)" no
+ * detalhe do lançamento.
  */
 export function getTransactionFaturamentoReal(tx: {
   type: string;
@@ -336,8 +338,8 @@ export function getTransactionFaturamentoReal(tx: {
   // Gorjeta da corrida sempre conta como faturamento (independente da forma de pagamento da corrida).
   const tip = tx.tipValue && tx.tipValue > 0 ? tx.tipValue : 0;
 
-  // Faturamento Bruto Real = valor ofertado pela app + gorjeta
-  return (tx.appOfferValue !== undefined ? tx.appOfferValue : tx.value) + tip;
+  // Faturamento Bruto Real = valor total entrado na corrida (já contém o extra cobrado por fora) + gorjeta
+  return tx.value + tip;
 }
 
 
