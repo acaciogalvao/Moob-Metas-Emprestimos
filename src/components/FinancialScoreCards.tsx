@@ -64,7 +64,7 @@ export function FinancialScoreCards({
 
       {/* Score 2: Faturamento Real Pós Despesas */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-slate-750 transition-colors">
-        <span className="text-[12.5px] text-cyan-400 font-bold uppercase tracking-wider block" title="Valor pago pelo passageiro + Extra - Despesas do turno">Faturamento Pós Despesas</span>
+        <span className="text-[12.5px] text-cyan-400 font-bold uppercase tracking-wider block" title="Faturamento Bruto Real - Despesas - Saldo nas Plataformas">Faturamento Pós Despesas</span>
         <div className={`mt-1 text-lg font-black font-mono tracking-tight leading-normal ${faturamentoPosDespesas >= 0 ? 'text-cyan-400' : 'text-rose-400'}`}>
           {formatBRL(faturamentoPosDespesas)}
         </div>
@@ -76,6 +76,12 @@ export function FinancialScoreCards({
           <div className="flex justify-between text-slate-400 font-sans">
             <span>Despesas op.:</span>
             <span className="text-rose-450 font-bold">-R$ {formatDecimalBRL(financialTotals.despesasTotais)}</span>
+          </div>
+          <div className="flex justify-between text-slate-400 font-sans">
+            <span>Saldo nas Plataformas:</span>
+            <span className={`font-bold ${financialTotals.saldosPlataformas >= 0 ? 'text-rose-450' : 'text-emerald-400'}`}>
+              {financialTotals.saldosPlataformas >= 0 ? '-' : '+'}R$ {formatDecimalBRL(Math.abs(financialTotals.saldosPlataformas))}
+            </span>
           </div>
         </div>
       </div>
