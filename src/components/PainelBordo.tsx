@@ -179,23 +179,26 @@ export function PainelBordo({
   // combinedKm: odômetro de transações + GPS — usado para cálculos de combustível
   const combinedKm = totalKmRun + gpsShiftKm;
 
-  // Velocidade média calculada sobre km GPS reais do turno (exclui km de transações)
-  const avgSpeed = shiftHours > 0.05 && gpsShiftKm > 0.1
-    ? gpsShiftKm / shiftHours
+  // Velocidade média: usa GPS quando disponível, cai para km de transações como
+  // fallback imediato (evita "-- km/h" no início do turno ou após reload).
+  // Limiar baixo (> 0.05 km) para aparecer assim que há qualquer deslocamento.
+  const kmForAvgSpeed = gpsShiftKm > 0.05 ? gpsShiftKm : totalKmRun;
+  const avgSpeed = shiftHours > 0.01 && kmForAvgSpeed > 0.05
+    ? kmForAvgSpeed / shiftHours
     : 0;
 
-  // Consumo real km/L: km GPS do turno ÷ litros consumidos.
+  // Consumo real km/L: usa combinedKm para ativar mais cedo (não depende só do GPS).
   // Usa fuelLitersConsumed (de abastecimentos) quando disponível;
-  // senão estima pelos km GPS e a autonomia configurada.
-  const litrosConsumidosEstimados = autonomyKmPerL > 0 ? gpsShiftKm / autonomyKmPerL : 0;
+  // senão estima pelos combinedKm e a autonomia configurada.
+  const litrosConsumidosEstimados = autonomyKmPerL > 0 ? combinedKm / autonomyKmPerL : 0;
   const litrosBase =
     fuelLitersConsumed != null && fuelLitersConsumed > 0.05
       ? fuelLitersConsumed
       : litrosConsumidosEstimados;
-  // Só calcula consumo real quando há km GPS suficientes (>= 1 km)
+  // Ativa cálculo real com 0,3 km (antes exigia 1 km de GPS puro)
   const consumoRealKmL =
-    gpsShiftKm >= 1 && litrosBase > 0.05
-      ? gpsShiftKm / litrosBase
+    combinedKm >= 0.3 && litrosBase > 0.01
+      ? combinedKm / litrosBase
       : autonomyKmPerL; // fallback: autonomia configurada
 
   // Velocidade a exibir: prioriza GPS externo (mais preciso, já filtrado por gpsProcessor)
@@ -447,24 +450,24 @@ export function PainelBordo({
 
               {/* Consumo real km/L */}
               <div className={`rounded-xl p-2.5 flex flex-col gap-0.5 border ${
-                gpsShiftKm >= 1 && litrosBase > 0.05
+                combinedKm >= 0.3 && litrosBase > 0.01
                   ? 'bg-amber-950/50 border-amber-500/25'
                   : 'bg-slate-900/40 border-slate-700/30'
               }`}>
                 <span className={`text-[9px] uppercase font-black tracking-wider leading-none ${
-                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-400/70' : 'text-slate-500'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-400/70' : 'text-slate-500'
                 }`}>⚙️ Consumo</span>
                 <span className={`font-mono font-black text-base leading-tight ${
-                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-300' : 'text-slate-400'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-300' : 'text-slate-400'
                 }`}>
                   {consumoRealKmL > 0
                     ? `${consumoRealKmL.toFixed(1).replace('.', ',')} km/L`
                     : '-- km/L'}
                 </span>
                 <span className={`text-[9px] font-mono leading-none ${
-                  gpsShiftKm >= 1 && litrosBase > 0.05 ? 'text-amber-500/60' : 'text-slate-600'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-500/60' : 'text-slate-600'
                 }`}>
-                  {gpsShiftKm >= 1 && litrosBase > 0.05 ? 'real' : 'configurado'}
+                  {combinedKm >= 0.3 && litrosBase > 0.01 ? 'real' : 'configurado'}
                 </span>
               </div>
             </div>
