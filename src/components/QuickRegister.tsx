@@ -896,14 +896,18 @@ export function QuickRegister({
       passengerAppVal = parsedPassengerApp;
 
       let extra = 0;
-      if (cleanValue <= 0) {
-        // Sem valor extra digitado na calculadora: o que vai pro Pix/Dinheiro é o que o app ofertou.
+      if (paymentMethod === 'APP') {
+        // Corrida direto no app: o valor ofertado SEMPRE vai pro saldo do app (nunca é substituído
+        // pelo que foi digitado na calculadora). Qualquer valor digitado NA CALCULADORA acima do
+        // ofertado é cobrado separadamente em Pix ou Dinheiro (extraChargedValue).
         finalValue = parsedOffer;
+        extra = cleanValue > 0 ? calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp) : 0;
       } else {
-        // Valor extra digitado: o que vai pro Pix/Dinheiro é exatamente o valor digitado na calculadora.
-        finalValue = cleanValue;
+        // Não-APP (Pix/Dinheiro/Cartão): motorista recebe diretamente do passageiro.
+        // O valor digitado na calculadora é o que foi efetivamente recebido.
+        finalValue = cleanValue > 0 ? cleanValue : parsedOffer;
+        extra = 0;
       }
-      extra = cleanValue > 0 ? calculateExtraValue(cleanValue, parsedOffer, parsedPassengerApp) : 0;
       
       finalPassengerValue = parsedPassengerApp;
       const baseDesc = description.trim() || `${platform === 'UBER' ? 'Corrida UberX' : 'Corrida 99Pop'}${km ? ` (${km} KM)` : ''}`;

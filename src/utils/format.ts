@@ -342,8 +342,12 @@ export function getTransactionFaturamentoReal(tx: {
   // Gorjeta da corrida sempre conta como faturamento (independente da forma de pagamento da corrida).
   const tip = tx.tipValue && tx.tipValue > 0 ? tx.tipValue : 0;
 
-  // Faturamento Bruto Real = valor total entrado na corrida (já contém o extra cobrado por fora) + gorjeta
-  return tx.value + tip;
+  // Para corridas APP: tx.value = valor ofertado; extraChargedValue = extra cobrado em Pix/Dinheiro.
+  // Para corridas não-APP: tx.value já é o valor total recebido; extraChargedValue = 0.
+  const extra = tx.extraChargedValue && tx.extraChargedValue > 0 ? tx.extraChargedValue : 0;
+
+  // Faturamento Bruto Real = ofertado (ou valor direto) + extra por fora + gorjeta
+  return tx.value + extra + tip;
 }
 
 
