@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { playBeep, playCashRegister } from '../utils/audio';
 import { maskBRL, parseBRLInput, maskKM, parseKMInput } from '../utils/format';
-import { processGpsReading, gpsTrackerInit, type GpsTrackerState } from '../utils/gpsKalman';
+import { processGpsPoint, gpsProcessorInit, type GpsProcessorState } from '../utils/gpsProcessor';
 
 interface TripTrackerProps {
   activeShift: any;
@@ -172,7 +172,7 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
   const timerRef         = useRef<NodeJS.Timeout | null>(null);
   const gpsWatchIdRef    = useRef<number | null>(null);
   const lastGpsCoordsRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
-  const gpsStateRef      = useRef<GpsTrackerState>(gpsTrackerInit());
+  const gpsStateRef      = useRef<GpsProcessorState>(gpsProcessorInit());
   const speedHistoryRef  = useRef<number[]>([]);
   const wakeLockRef      = useRef<any>(null);
 
@@ -338,9 +338,8 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
             }
           }
 
-          // ── Filtro de Kalman + fusão + limitador de aceleração + EMA ────────
-          // (mesma lógica usada em apps como 99 e Uber)
-          const { speedKmh, state } = processGpsReading(gpsStateRef.current, {
+          // ── gpsProcessor: EMA + limitador de aceleração + confirmação de parada ─
+          const { speedKmh, state } = processGpsPoint(gpsStateRef.current, {
             latitude, longitude, speed, accuracy, timestamp: now,
           });
           gpsStateRef.current = state;

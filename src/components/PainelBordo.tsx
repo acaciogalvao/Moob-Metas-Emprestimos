@@ -3,7 +3,7 @@
  * Velocímetro GPS em tempo real + autonomia + km + horas + velocidade média
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { processGpsReading, gpsTrackerInit, type GpsTrackerState } from '../utils/gpsKalman';
+import { processGpsPoint, gpsProcessorInit, type GpsProcessorState } from '../utils/gpsProcessor';
 
 interface PainelBordoProps {
   activeShift: any;
@@ -81,7 +81,7 @@ export function PainelBordo({
   const [tick, setTick] = useState(0);
 
   const gpsWatchRef   = useRef<number | null>(null);
-  const gpsStateRef   = useRef<GpsTrackerState>(gpsTrackerInit());
+  const gpsStateRef   = useRef<GpsProcessorState>(gpsProcessorInit());
   const lastCoordRef  = useRef<{ lat: number; lng: number; time: number } | null>(null);
 
   // ── Relógio sempre ativo ─────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export function PainelBordo({
   const startGPS = useCallback(() => {
     if (!navigator.geolocation) return;
     lastCoordRef.current = null;
-    gpsStateRef.current  = gpsTrackerInit();
+    gpsStateRef.current  = gpsProcessorInit();
 
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -123,7 +123,7 @@ export function PainelBordo({
           }
         }
 
-        const { speedKmh, state } = processGpsReading(gpsStateRef.current, {
+        const { speedKmh, state } = processGpsPoint(gpsStateRef.current, {
           latitude, longitude, speed, accuracy, timestamp: now,
         });
         gpsStateRef.current = state;

@@ -34,6 +34,7 @@ export interface GpsProcessorState {
   lastBearing: number | null;
   lastBearingTime: number | null;
   usingNativeSpeed: boolean;     // indica qual fonte está sendo usada (para debug)
+  zeroCount: number;             // leituras consecutivas abaixo do limiar de parada
 }
 
 export interface GpsProcessorOutput {
@@ -67,6 +68,15 @@ const NATIVE_ZERO_SNAP_MS = 0.5;   // ~1.8 km/h
 
 /** Velocidade Haversine abaixo deste valor (km/h) → snap imediato para zero */
 const HAVERSINE_ZERO_SNAP_KMH = 2;
+
+/** Precisão máxima aceita (metros) — acima disso descarta o ponto */
+const MAX_ACCURACY_M = 65;
+
+/** Limite físico de aceleração/frenagem (m/s²) — impede saltos impossíveis */
+const MAX_ACCEL_MS2 = 6;
+
+/** Leituras consecutivas abaixo de 1.8 km/h para confirmar parada */
+const ZERO_CONFIRM_COUNT = 3;
 
 // ─── Funções auxiliares ──────────────────────────────────────────────────────
 
@@ -111,6 +121,7 @@ export function gpsProcessorInit(): GpsProcessorState {
     lastBearing: null,
     lastBearingTime: null,
     usingNativeSpeed: false,
+    zeroCount: 0,
   };
 }
 
@@ -140,10 +151,22 @@ export function processGpsPoint(
   // Distância Haversine — usada sempre para o odômetro
   const distM = haversineM(last.latitude, last.longitude, point.latitude, point.longitude);
 
+  // Descarta pontos com sinal ruim (accuracy > 65m) — ruído demais
+  if (point.accuracy !== undefined && point.accuracy > MAX_ACCURACY_M) {
+    return {
+      speedKmh: Math.round(prev.velSuave),
+      totalKm: prev.totalKm,
+      tripKm: prev.tripKm,
+      state: { ...prev, history },
+      discarded: true,
+      usingNativeSpeed: prev.usingNativeSpeed,
+    };
+  }
+
   // Descarta ponto impossível (> 500m em ≤ 1s)
   if (distM > MAX_DIST_1S_M && deltaTSec <= 1) {
     return {
-      speedKmh: prev.velSuave,
+      speedKmh: Math.round(prev.velSuave),
       totalKm: prev.totalKm,
       tripKm: prev.tripKm,
       state: { ...prev, history },
@@ -196,6 +219,23 @@ export function processGpsPoint(
 
   velSuave = Math.max(0, Math.min(MAX_SPEED_KMH, velSuave));
 
+  // ── Limitador de aceleração física — impede saltos bruscos ────────────
+  const maxDeltaKmh = MAX_ACCEL_MS2 * deltaTSec * 3.6;
+  velSuave = Math.min(
+    prev.velSuave + maxDeltaKmh,
+    Math.max(prev.velSuave - maxDeltaKmh * 2, velSuave),
+  );
+  velSuave = Math.max(0, velSuave);
+
+  // ── Confirmação de parada: evita piscar no velocímetro ────────────────
+  let zeroCount = prev.zeroCount ?? 0;
+  if (velSuave < 1.8) {
+    zeroCount++;
+  } else {
+    zeroCount = 0;
+  }
+  if (zeroCount >= ZERO_CONFIRM_COUNT) velSuave = 0;
+
   // ── Odômetro: sempre acumula distância Haversine ───────────────────────
   const distKm = distM / 1000;
   const totalKm = prev.totalKm + distKm;
@@ -210,6 +250,7 @@ export function processGpsPoint(
     lastBearing: movingSig ? currentBearing : prev.lastBearing,
     lastBearingTime: movingSig ? point.timestamp : prev.lastBearingTime,
     usingNativeSpeed,
+    zeroCount,
   };
 
   return {
