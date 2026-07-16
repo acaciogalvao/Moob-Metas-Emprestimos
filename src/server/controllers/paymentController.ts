@@ -6,7 +6,9 @@ import Goal from "../models/Goal.ts";
 import { generatePixPayload } from "../lib/pixPayload.ts";
 import { GoogleGenAI, Type } from "@google/genai";
 
-/** Busca e atualiza um documento por ID nas duas coleções (e na legado Goal) */
+// ─── Helpers ──────────────────────────────────────────────────────
+
+/** Searches Loan → Saving → Goal and returns the first match. */
 async function findByIdAndUpdateBoth(id: string, update: any) {
   let doc = await Loan.findByIdAndUpdate(id, update, { new: true });
   if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { new: true });
@@ -14,47 +16,94 @@ async function findByIdAndUpdateBoth(id: string, update: any) {
   return doc;
 }
 
+/**
+ * Recalculates savedP1/savedP2 from the payments array.
+ * Uses the schema method when available (Mongoose doc); falls back to
+ * manual calculation for MockDocument (offline fallback).
+ */
+function recalcSaved(doc: any): void {
+  if (typeof doc.recalcSaved === "function") {
+    doc.recalcSaved();
+    return;
+  }
+  let p1 = 0;
+  let p2 = 0;
+  for (const p of doc.payments ?? []) {
+    if (p.payerId === "P1") p1 += p.amount ?? 0;
+    if (p.payerId === "P2") p2 += p.amount ?? 0;
+  }
+  doc.savedP1 = p1;
+  doc.savedP2 = p2;
+}
+
+/** Returns true when the string is a recognisable base64 image prefix. */
+function isValidBase64Image(s: string): boolean {
+  // Either a data-URI prefix or raw base64 (at least 100 chars)
+  return (
+    /^data:(image\/(jpeg|jpg|png|webp|gif|bmp)|application\/pdf);base64,/i.test(s) ||
+    (s.length > 100 && /^[A-Za-z0-9+/=]+$/.test(s.slice(0, 100)))
+  );
+}
+
+/** Sanitizes a PIX key — trims and strips obvious injection patterns. */
+function sanitizePixKey(key: string): string {
+  return key.trim().replace(/[<>"'`\\]/g, "").slice(0, 200);
+}
+
+// ─── Controllers ──────────────────────────────────────────────────
+
 export const verifyReceipt = async (req: Request, res: Response) => {
   try {
     const { imageBase64, expectedAmount, expectedPayer } = req.body;
-    
-    if (!imageBase64 || !expectedAmount) {
-      return res.status(400).json({ error: "Dados inválidos" });
+
+    // Validation — route middleware already checks these exist, but we add
+    // semantic checks here (format, finite number)
+    if (!isValidBase64Image(imageBase64)) {
+      return res.status(400).json({ error: "Imagem inválida ou formato não suportado" });
+    }
+    const amount = Number(expectedAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Valor esperado inválido" });
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY não configurada. Aprovando mock.");
-      // Se não tiver chave, usamos um mock para aprovar
+      console.warn("[verifyReceipt] GEMINI_API_KEY não configurada — aprovando via mock.");
       return res.json({ isValid: true, reason: "" });
     }
 
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
+      httpOptions: { headers: { "User-Agent": "aistudio-build" } },
     });
 
-    const strippedBase64 = imageBase64.replace(/^data:[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+;base64,/, "");
+    // Strip data-URI prefix to get raw base64
+    const strippedBase64 = imageBase64.replace(
+      /^data:[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+;base64,/,
+      ""
+    );
+    const mimeMatch = imageBase64.match(
+      /^data:([a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+);base64,/
+    );
+    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
 
-    const mimeTypeStr = imageBase64.match(/^data:([a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+);base64,/);
-    const mimeType = mimeTypeStr ? mimeTypeStr[1] : "image/jpeg";
+    const payerHint = expectedPayer
+      ? `\nVerifique se o nome de quem pagou (ou remetente) se assemelha a "${String(expectedPayer).slice(0, 100)}".`
+      : "";
 
-    const prompt = `Analise este comprovante de pagamento.
-Verifique se o valor do comprovante corresponde a aproximadamente ${expectedAmount} (pode haver pequena variação de juros).
-Verifique se o nome de quem pagou (ou remetente) se assemelha a "${expectedPayer}".
-Retorne um JSON estruturado com a validade.
-`;
+    const prompt =
+      `Analise este comprovante de pagamento.\n` +
+      `Verifique se o valor corresponde a aproximadamente R$ ${amount.toFixed(2)} ` +
+      `(pequenas variações de juros são aceitáveis).` +
+      payerHint +
+      `\nRetorne um JSON com os campos isValid (boolean) e reason (string em português).`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: {
         parts: [
           { inlineData: { mimeType, data: strippedBase64 } },
-          { text: prompt }
-        ]
+          { text: prompt },
+        ],
       },
       config: {
         responseMimeType: "application/json",
@@ -63,106 +112,118 @@ Retorne um JSON estruturado com a validade.
           properties: {
             isValid: {
               type: Type.BOOLEAN,
-              description: "Indica se o comprovante é válido, se o valor bate (ou está próximo) e parece legítimo",
+              description: "true se o comprovante parece válido e o valor bate",
             },
             reason: {
               type: Type.STRING,
-              description: "Motivo curto se for inválido, em português. Se válido, pode ser vazio.",
+              description: "Motivo curto se inválido; vazio se válido",
             },
           },
           required: ["isValid", "reason"],
         },
-      }
+      },
     });
 
-    const resultText = response.text || "{}";
-    const resultJson = JSON.parse(resultText);
-
-    return res.json({ 
-      isValid: resultJson.isValid, 
-      reason: resultJson.reason 
-    });
+    const parsed = JSON.parse(response.text ?? "{}");
+    return res.json({ isValid: !!parsed.isValid, reason: parsed.reason ?? "" });
   } catch (err: any) {
-    console.error("Erro ao verificar comprovante com Gemini:", err);
-    // Fallback amigável se a API falhar temporariamente
-    return res.json({ isValid: true, reason: "" });
+    console.error("[verifyReceipt] Erro:", err);
+    return res.json({ isValid: true, reason: "" }); // friendly fallback
   }
 };
 
-// Gera QR Code estático a partir de uma chave PIX pessoal
 export const generateStaticPix = async (req: Request, res: Response) => {
   try {
     const { amount, pixKey, merchantName } = req.body;
 
-    if (!pixKey) {
-      return res.status(400).json({ error: "Chave PIX não informada" });
+    const cleanKey = sanitizePixKey(String(pixKey ?? ""));
+    if (!cleanKey) {
+      return res.status(400).json({ error: "Chave PIX inválida" });
     }
 
-    const pixCode = generatePixPayload(pixKey, merchantName || "RECEBEDOR", Number(amount));
+    const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+    const safeName = String(merchantName ?? "RECEBEDOR")
+      .trim()
+      .slice(0, 25)
+      .replace(/[^A-Za-z0-9 ]/g, "")
+      || "RECEBEDOR";
 
-    const qrCodeBase64 = await QRCode.toDataURL(pixCode, {
+    const pixCode = generatePixPayload(cleanKey, safeName, safeAmount);
+    const qrRaw = await QRCode.toDataURL(pixCode, {
       width: 256,
       margin: 1,
       color: { dark: "#000000", light: "#ffffff" },
     });
-
-    const base64 = qrCodeBase64.replace(/^data:image\/png;base64,/, "");
-
+    const base64 = qrRaw.replace(/^data:image\/png;base64,/, "");
     return res.json({ pixCode, qrCodeBase64: base64, isMock: true });
   } catch (err: any) {
-    console.error("Erro ao gerar PIX estático:", err);
+    console.error("[generateStaticPix] Erro:", err);
     return res.status(500).json({ error: err.message });
   }
 };
 
-// Cria pagamento via Mercado Pago (ou mock se sem token)
 export const createPixPayment = async (req: Request, res: Response) => {
   try {
     const { amount, goalId, payerId } = req.body;
-    const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
+    const safeAmount = Number(amount);
+    if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+      return res.status(400).json({ error: "Valor inválido" });
+    }
+
+    const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!mpToken || mpToken === "seu_token_aqui" || mpToken.startsWith("TEST-")) {
-      const mockPaymentId = `mock_${Date.now()}`;
-      const pixCode = `00020126330014BR.GOV.BCB.PIX0111${goalId?.slice(0, 11) || "00000000000"}52040000530398654${String(Number(amount).toFixed(2)).length.toString().padStart(2, "0")}${Number(amount).toFixed(2)}5802BR5908RECEBEDOR6009SAO PAULO62070503***6304ABCD`;
-      const qrCodeBase64Raw = await QRCode.toDataURL(pixCode, { width: 256 });
-      const base64 = qrCodeBase64Raw.replace(/^data:image\/png;base64,/, "");
-      return res.json({ paymentId: mockPaymentId, pixCode, qrCodeBase64: base64, isMock: true });
+      const mockId = `mock_${Date.now()}`;
+      const pixCode = `00020126330014BR.GOV.BCB.PIX0111${
+        String(goalId).slice(0, 11).padEnd(11, "0")
+      }52040000530398654${String(safeAmount.toFixed(2)).length
+        .toString()
+        .padStart(2, "0")}${safeAmount.toFixed(
+        2
+      )}5802BR5908RECEBEDOR6009SAO PAULO62070503***6304ABCD`;
+      const qrRaw = await QRCode.toDataURL(pixCode, { width: 256 });
+      return res.json({
+        paymentId: mockId,
+        pixCode,
+        qrCodeBase64: qrRaw.replace(/^data:image\/png;base64,/, ""),
+        isMock: true,
+      });
     }
 
     const { MercadoPagoConfig, Payment } = await import("mercadopago");
     const client = new MercadoPagoConfig({ accessToken: mpToken });
     const payment = new Payment(client);
-
     const result = await payment.create({
       body: {
-        transaction_amount: Number(amount),
+        transaction_amount: safeAmount,
         payment_method_id: "pix",
         payer: { email: "pagador@metacompartilhada.com" },
-        description: `Contribuição meta ${goalId} - ${payerId}`,
+        description: `Contribuição meta ${String(goalId).slice(0, 50)} - ${payerId}`,
       },
     });
 
     const txInfo = (result as any).point_of_interaction?.transaction_data;
     return res.json({
       paymentId: String(result.id),
-      pixCode: txInfo?.qr_code || "",
-      qrCodeBase64: txInfo?.qr_code_base64 || "",
+      pixCode: txInfo?.qr_code ?? "",
+      qrCodeBase64: txInfo?.qr_code_base64 ?? "",
       isMock: false,
     });
   } catch (err: any) {
-    console.error("Erro ao criar pagamento PIX:", err);
+    console.error("[createPixPayment] Erro:", err);
     return res.status(500).json({ error: err.message });
   }
 };
 
-// Verifica status de pagamento
 export const checkPayment = async (req: Request, res: Response) => {
   try {
     const { paymentId } = req.params;
     if (paymentId.startsWith("mock_")) return res.json({ status: "pending" });
 
     const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-    if (!mpToken || mpToken === "seu_token_aqui") return res.json({ status: "pending" });
+    if (!mpToken || mpToken === "seu_token_aqui") {
+      return res.json({ status: "pending" });
+    }
 
     const { MercadoPagoConfig, Payment } = await import("mercadopago");
     const client = new MercadoPagoConfig({ accessToken: mpToken });
@@ -170,68 +231,57 @@ export const checkPayment = async (req: Request, res: Response) => {
     const result = await payment.get({ id: Number(paymentId) });
     return res.json({ status: result.status });
   } catch (err: any) {
-    console.error("Erro ao verificar pagamento:", err);
+    console.error("[checkPayment] Erro:", err);
     return res.status(500).json({ error: err.message });
   }
 };
 
-// Registra pagamento manual no histórico
 export const manualPay = async (req: Request, res: Response) => {
   try {
     const { amount, goalId, payerId, method } = req.body;
 
-    if (!goalId || !amount || amount <= 0) {
-      return res.status(400).json({ error: "Dados inválidos" });
+    const safeAmount = Number(amount);
+    if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+      return res.status(400).json({ error: "Valor inválido" });
+    }
+    if (!goalId || typeof goalId !== "string") {
+      return res.status(400).json({ error: "goalId inválido" });
+    }
+    if (payerId !== "P1" && payerId !== "P2") {
+      return res.status(400).json({ error: "payerId deve ser P1 ou P2" });
     }
 
-    const paymentId = `${method === "dinheiro" ? "dinheiro" : "pag"}_${Date.now()}`;
+    const safeMethod = ["pix", "dinheiro", "PIX", "DINHEIRO"].includes(method)
+      ? method
+      : "pix";
+    const paymentId = `${safeMethod === "dinheiro" || safeMethod === "DINHEIRO" ? "dinheiro" : "pag"}_${Date.now()}`;
 
     const doc = await findByIdAndUpdateBoth(goalId, {
       $push: {
         payments: {
-          _id: paymentId, // usará o _id no schema local do MongoDB
+          _id: paymentId,
           paymentId,
-          amount: Number(amount),
-          method: method || "pix",
+          amount: safeAmount,
+          method: safeMethod,
           payerId,
           date: new Date(),
         },
-      }
+      },
     });
 
     if (!doc) {
-      console.warn(`[manualPay] Meta/Empréstimo com ID ${goalId} não foi encontrado.`);
-      const allSavings = await Saving.find().catch(() => []);
-      const allLoans = await Loan.find().catch(() => []);
-      const allGoals = await Goal.find().catch(() => []);
-      
-      console.log("[manualPay] IDs de Metas existentes:", allSavings.map((s: any) => s._id));
-      console.log("[manualPay] IDs de Empréstimos existentes:", allLoans.map((l: any) => l._id));
-      console.log("[manualPay] IDs de Goals legados existentes:", allGoals.map((g: any) => g._id));
-
-      return res.status(404).json({ 
-        error: `Não encontrado. ID requisitado: ${goalId}. Verifique os logs do servidor para mais detalhes.`,
+      console.warn(`[manualPay] ID ${goalId} não encontrado em nenhuma coleção.`);
+      return res.status(404).json({
+        error: `Meta/Empréstimo não encontrado (ID: ${goalId})`,
         goalId,
-        availableSavings: allSavings.map((s: any) => s._id),
-        availableLoans: allLoans.map((l: any) => l._id),
-        availableGoals: allGoals.map((g: any) => g._id)
       });
     }
 
-    // Recalcula savedP1 e savedP2
-    let sP1 = 0;
-    let sP2 = 0;
-    doc.payments.forEach((p: any) => {
-      if (p.payerId === "P1") sP1 += p.amount;
-      if (p.payerId === "P2") sP2 += p.amount;
-    });
-    doc.savedP1 = sP1;
-    doc.savedP2 = sP2;
+    recalcSaved(doc);
     await doc.save();
-
     return res.json({ success: true, goal: doc });
   } catch (err: any) {
-    console.error("Erro ao registrar pagamento manual:", err);
+    console.error("[manualPay] Erro:", err);
     return res.status(500).json({ error: err.message });
   }
 };

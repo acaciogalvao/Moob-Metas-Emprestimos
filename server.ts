@@ -27,7 +27,7 @@ app.use("/moob-api", paymentRoutes);
 // Rotas de configuração de banco de dados para o Termux / Customização
 import { getMongooseConnected, getMetaMongooseConnected, syncLocalToCloud } from "./src/server/models/dbWrapper.ts";
 import { getCustomMongoURI, getCustomMetaMongoURI, saveCustomMongoURI, saveCustomMetaMongoURI, maskMongoURI } from "./src/server/config/userConfig.ts";
-import { getCurrentActiveURI, getCurrentActiveMetaURI } from "./src/server/config/database.ts";
+import { getCurrentActiveURI, getCurrentActiveMetaURI, getDbHealth } from "./src/server/config/database.ts";
 
 app.get("/moob-api/config/db-status", (_req, res) => {
   const connected = getMongooseConnected();
@@ -44,7 +44,8 @@ app.get("/moob-api/config/db-status", (_req, res) => {
     activeUriMasked: maskMongoURI(activeUri),
     activeMetaUriMasked: maskMongoURI(activeMetaUri),
     usingDefaultFallback: !customUri && !process.env.MONGODB_URI,
-    usingDefaultMetaFallback: !customMetaUri && !process.env.META_MONGODB_URI
+    usingDefaultMetaFallback: !customMetaUri && !process.env.META_MONGODB_URI,
+    health: getDbHealth(),
   });
 });
 
