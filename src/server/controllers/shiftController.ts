@@ -1,9 +1,24 @@
 import { Request, Response } from "express";
 import ShiftModel from "../models/Shift.ts";
 
-// Busca todos os turnos
+// Busca todos os turnos (com paginação opcional via ?page=1&limit=50)
 export const getShifts = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(String(req.query.page ?? ""), 10);
+    const limit = Math.min(parseInt(String(req.query.limit ?? ""), 10) || 0, 500);
+
+    if (page > 0 && limit > 0) {
+      const [shifts, total] = await Promise.all([
+        ShiftModel.find()
+          .sort({ openedAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit),
+        ShiftModel.countDocuments(),
+      ]);
+      return res.json({ shifts, total, page, limit, pages: Math.ceil(total / limit) });
+    }
+
+    // Sem paginação — retorna tudo (comportamento original, compatível com frontend)
     const shifts = await ShiftModel.find().sort({ openedAt: -1 });
     res.json(shifts);
   } catch (err: any) {

@@ -18,12 +18,25 @@ async function findByIdInBoth(id: string) {
 
 export const getGoals = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(String(req.query.page ?? ""), 10);
+    const limit = Math.min(parseInt(String(req.query.limit ?? ""), 10) || 0, 200);
+
     const [savings, loans, legacyGoals] = await Promise.all([
       Saving.find().sort({ _id: -1 }),
       Loan.find().sort({ _id: -1 }),
       Goal.find().sort({ _id: -1 }),
     ]);
-    res.json([...loans, ...savings, ...legacyGoals]);
+
+    const all = [...loans, ...savings, ...legacyGoals];
+
+    if (page > 0 && limit > 0) {
+      const start = (page - 1) * limit;
+      const sliced = all.slice(start, start + limit);
+      return res.json({ goals: sliced, total: all.length, page, limit, pages: Math.ceil(all.length / limit) });
+    }
+
+    // Sem paginação — retorna tudo (comportamento original, compatível com frontend)
+    res.json(all);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
