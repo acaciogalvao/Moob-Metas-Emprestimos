@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// ─────────────────────────────────────────────
+// Primitivos / Enums
+// ─────────────────────────────────────────────
+
 export type PlatformType = 'UBER' | '99' | 'PARTICULAR' | 'GERAL';
 
 export type TransactionType = 'IN' | 'OUT';
@@ -14,6 +18,18 @@ export type TransactionType = 'IN' | 'OUT';
 // - APP (paid directly in the app wallet / account balance)
 export type PaymentMethod = 'PIX' | 'DINHEIRO' | 'CARTAO' | 'APP' | 'pix' | 'dinheiro';
 
+export type PeriodFilter = 'HOJE' | 'ONTEM' | 'SETE_DIAS' | 'TRINTA_DIAS' | 'ESTE_MES' | 'TOTAL';
+
+export type DurationUnit = 'days' | 'weeks' | 'months';
+export type DeadlineType = 'duration' | 'dates';
+export type GoalType = 'individual' | 'shared';
+export type Frequency = 'daily' | 'weekly' | 'monthly';
+export type Payer = 'P1' | 'P2';
+
+// ─────────────────────────────────────────────
+// Caixa / Turno
+// ─────────────────────────────────────────────
+
 export interface Transaction {
   id: string;
   timestamp: string;
@@ -23,7 +39,7 @@ export interface Transaction {
   value: number; // Gross value
   description?: string;
   paymentMethod: PaymentMethod;
-  // Let's add extra details like distance, estimated duration or multiplier if the user wants to add them
+  // Extra trip details (optional)
   km?: number;
   passengerValue?: number; // Valor pago pelo passageiro (legacy, keep for compatibility)
   appOfferValue?: number; // Valor oferecido pelo aplicativo na chamada
@@ -76,20 +92,16 @@ export interface FinancialSummary {
   totalExpenses: number; // Total saídas (OUT)
   balance: number; // net change (IN - OUT)
   currentAccountBalance: number; // active cash (Saldo do Caixa: initialBalance + IN - OUT)
-  
+
   // Specific payment method breakdowns
   cashReceived: number;
   cardReceived: number;
   pixReceived: number;
 }
 
-export type PeriodFilter = 'HOJE' | 'ONTEM' | 'SETE_DIAS' | 'TRINTA_DIAS' | 'ESTE_MES' | 'TOTAL';
-
-export type DurationUnit = "days" | "weeks" | "months";
-export type DeadlineType = "duration" | "dates";
-export type GoalType = "individual" | "shared";
-export type Frequency = "daily" | "weekly" | "monthly";
-export type Payer = "P1" | "P2";
+// ─────────────────────────────────────────────
+// Metas / Empréstimos
+// ─────────────────────────────────────────────
 
 export interface Payment {
   _id: string;
@@ -173,4 +185,40 @@ export interface CalculationResults {
   latePeriodsCountP2?: number;
   lateValueP1?: number;
   lateValueP2?: number;
+}
+
+// ─────────────────────────────────────────────
+// Estado da Aplicação
+// ─────────────────────────────────────────────
+
+/** Tab ativa na navegação principal */
+export type AppTab = 'caixa' | 'historico' | 'metas' | 'oficina';
+
+/** Estado de carregamento genérico */
+export type LoadingState = 'idle' | 'loading' | 'success' | 'error';
+
+/** Resultado genérico de operação assíncrona */
+export interface AsyncResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+}
+
+// ─────────────────────────────────────────────
+// UI / Componentes
+// ─────────────────────────────────────────────
+
+/** Props base para componentes que recebem className */
+export interface WithClassName {
+  className?: string;
+}
+
+/** Toast / notificação rápida */
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+export interface ToastMessage {
+  id: string;
+  type: ToastType;
+  message: string;
+  durationMs?: number;
 }
