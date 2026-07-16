@@ -1,10 +1,7 @@
-import mongoose from "mongoose";
-import { goalSchema } from "./goalSchema.ts";
+import { createGoalModel } from "./goalSchema.ts";
 import { getModelWrapper } from "./dbWrapper.ts";
 
-// Coleção legada "goals" — usada apenas para migração dos dados existentes
-const GoalModel = mongoose.models.Goal || mongoose.model("Goal", goalSchema, "goals");
-const Goal = getModelWrapper("Goal", GoalModel);
+// Coleção legada "goals" — mantida apenas para migração de dados existentes
+const GoalModel = createGoalModel("Goal", "goals");
 
-export default Goal as any;
-
+export default getModelWrapper("Goal", GoalModel) as any;

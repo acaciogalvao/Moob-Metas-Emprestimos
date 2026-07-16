@@ -1,9 +1,7 @@
-import mongoose from "mongoose";
-import { goalSchema } from "./goalSchemas.ts";
+import { createGoalModel } from "./goalSchema.ts";
 import { getModelWrapper } from "./dbWrapper.ts";
 
-const SavingModel = mongoose.models.Saving || mongoose.model("Saving", goalSchema, "metas");
-const Saving = getModelWrapper("Saving", SavingModel);
+// Metas de poupança compartilhada — coleção "metas"
+const SavingModel = createGoalModel("Saving", "metas");
 
-export default Saving as any;
-
+export default getModelWrapper("Saving", SavingModel) as any;

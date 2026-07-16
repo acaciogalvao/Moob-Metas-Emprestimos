@@ -1,9 +1,7 @@
-import mongoose from "mongoose";
-import { goalSchema } from "./goalSchema.ts";
+import { createGoalModel } from "./goalSchema.ts";
 import { getModelWrapper } from "./dbWrapper.ts";
 
-const LoanModel = mongoose.models.Loan || mongoose.model("Loan", goalSchema, "emprestimos");
-const Loan = getModelWrapper("Loan", LoanModel);
+// Empréstimos entre parceiros — coleção "emprestimos"
+const LoanModel = createGoalModel("Loan", "emprestimos");
 
-export default Loan as any;
-
+export default getModelWrapper("Loan", LoanModel) as any;
