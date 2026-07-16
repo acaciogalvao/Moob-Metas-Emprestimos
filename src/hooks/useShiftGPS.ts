@@ -20,7 +20,8 @@ import {
 } from '../utils/gpsProcessor';
 import { useBackgroundKeepAlive } from './useBackgroundKeepAlive';
 
-const GPS_KM_PREFIX = 'moob_gps_km_'; // + shiftId
+const GPS_KM_PREFIX   = 'moob_gps_km_'; // + shiftId
+const RATE_LIMIT_MS   = 200;            // 5 Hz máximo — economiza bateria/CPU
 
 export interface ShiftGpsData {
   speedKmh: number;
@@ -45,6 +46,7 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
   const processorRef        = useRef<GpsProcessorState>(gpsProcessorInit());
   const watchIdRef          = useRef<number | null>(null);
   const lastGpsFireRef      = useRef<number>(0);
+  const lastProcessedRef    = useRef<number>(0); // rate limiting 5 Hz
   const lastSpeedKmhRef     = useRef(0);
   const gpsUpdatesInBgRef   = useRef(0);
   const isShiftOpenRef      = useRef(false);
@@ -134,10 +136,15 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        lastGpsFireRef.current = Date.now();
+        const fireTs = pos.timestamp || Date.now();
+        lastGpsFireRef.current = fireTs;
+
+        // Rate limiting: 5 Hz máximo — descarta atualizações mais rápidas que 200 ms
+        if (fireTs - lastProcessedRef.current < RATE_LIMIT_MS) return;
+        lastProcessedRef.current = fireTs;
 
         const { latitude, longitude, speed, accuracy: acc } = pos.coords;
-        const timestamp = pos.timestamp || Date.now();
+        const timestamp = fireTs;
 
         if (isBackgroundRef.current) gpsUpdatesInBgRef.current++;
 

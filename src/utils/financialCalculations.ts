@@ -1,10 +1,32 @@
 /**
  * financialCalculations.ts — Pure computation functions extracted from App.tsx.
  * No hooks, no side effects — plain functions over shift/transaction data.
+ *
+ * Cache TTL: resultados caros são memoizados por 2 s para evitar recálculos em
+ * renders rápidos. A chave é derivada dos dados (id + contagem + último timestamp),
+ * então mudanças reais invalidam o cache imediatamente.
  */
 
 import { Shift, Transaction, PeriodFilter } from '../types';
 import { getTransactionFaturamentoReal, calculateExtraValue, getPlatformBalanceDelta } from './format';
+
+// ─── Cache TTL ────────────────────────────────────────────────────────────────
+
+interface CacheEntry<T> { value: T; ts: number; }
+const _cache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL_MS = 2_000;
+
+function memoWithTTL<T>(key: string, fn: () => T): T {
+  const now   = Date.now();
+  const entry = _cache.get(key) as CacheEntry<T> | undefined;
+  if (entry && now - entry.ts < CACHE_TTL_MS) return entry.value;
+  const value = fn();
+  _cache.set(key, { value, ts: now });
+  return value;
+}
+
+/** Invalida todo o cache (chamar após mutações de dados, ex: novo turno) */
+export function clearFinancialCache(): void { _cache.clear(); }
 
 /**
  * Filters all transactions across all shifts based on the given period filter.
@@ -359,6 +381,62 @@ export function computeFinancialTotals(
     particularKM,
     totalKM
   };
+}
+
+// ─── Variantes com cache TTL ──────────────────────────────────────────────────
+
+function lastTxTs(txs: Transaction[]): string {
+  return txs.length > 0 ? String(txs[txs.length - 1].timestamp) : '';
+}
+
+/**
+ * computeFilteredTransactions com cache 2 s.
+ * Chave: filtro + contagem total de transações.
+ */
+export function computeFilteredTransactionsCached(
+  shifts: Shift[],
+  periodFilter: PeriodFilter,
+): Transaction[] {
+  const total = shifts.reduce((n, s) => n + s.transactions.length, 0);
+  const key   = `filt:${periodFilter}:${shifts.length}:${total}`;
+  return memoWithTTL(key, () => computeFilteredTransactions(shifts, periodFilter));
+}
+
+/**
+ * computeRefuelMetrics com cache 2 s.
+ * Invalida quando muda contagem de transações ou tipo de veículo.
+ */
+export function computeRefuelMetricsCached(
+  shifts: Shift[],
+  vehicleType: 'CAR' | 'BIKE',
+): ReturnType<typeof computeRefuelMetrics> {
+  const total = shifts.reduce((n, s) => n + s.transactions.length, 0);
+  const key   = `refuel:${vehicleType}:${shifts.length}:${total}`;
+  return memoWithTTL(key, () => computeRefuelMetrics(shifts, vehicleType));
+}
+
+/**
+ * computeFinancialTotals com cache 2 s.
+ * Chave derivada do id + contagem + último timestamp do turno ativo.
+ */
+export function computeFinancialTotalsCached(
+  activeShift: Shift | null,
+  activeTab: 'REGISTER' | 'ANALYTICS',
+  allFilteredTransactions: Transaction[],
+): ReturnType<typeof computeFinancialTotals> {
+  const shiftTxs    = activeShift?.transactions ?? [];
+  const key = [
+    'ft',
+    activeShift?.id ?? 'null',
+    shiftTxs.length,
+    lastTxTs(shiftTxs),
+    activeTab,
+    allFilteredTransactions.length,
+    lastTxTs(allFilteredTransactions),
+  ].join(':');
+  return memoWithTTL(key, () =>
+    computeFinancialTotals(activeShift, activeTab, allFilteredTransactions),
+  );
 }
 
 /**

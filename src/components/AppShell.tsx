@@ -3,9 +3,9 @@
  * Layout principal do app — consome useAppState e renderiza toda a interface.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { playBeep } from '../utils/audio';
+import { playBeep, warmUpAudio } from '../utils/audio';
 
 import { AppNavbar } from './AppNavbar';
 import { SystemTabsNav } from './SystemTabsNav';
@@ -105,6 +105,16 @@ export function AppShell() {
     handleToggleSpeedometer,
     isLoadingFromServer,
   } = useAppState();
+
+  // Pré-aquece AudioContext e renderiza buffers no primeiro gesto do usuário
+  useEffect(() => {
+    const handler = () => {
+      warmUpAudio();
+      window.removeEventListener('pointerdown', handler);
+    };
+    window.addEventListener('pointerdown', handler, { once: true });
+    return () => window.removeEventListener('pointerdown', handler);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 select-none relative overflow-x-hidden w-full flex flex-col shadow-2xl sm:max-w-[480px] sm:mx-auto md:border-x md:border-slate-800/60 md:shadow-amber-500/5">
