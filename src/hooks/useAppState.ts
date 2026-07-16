@@ -4,8 +4,6 @@
  * O AppShell consome este hook para renderizar a interface.
  */
 
-import { useState, useEffect } from 'react';
-import { Shift, PeriodFilter } from '../types';
 import { playBeep } from '../utils/audio';
 
 import { useShiftPersistence } from './useShiftPersistence';
@@ -18,9 +16,10 @@ import { useDbConfig } from './useDbConfig';
 import { useSpeedometer } from './useSpeedometer';
 import { useDashboardMetrics } from './useDashboardMetrics';
 import { useShiftActions } from './useShiftActions';
+import { useUIState } from './useUIState';
 
-export type SystemTab = 'caixa' | 'historico' | 'viagem' | 'metas' | 'oficina';
-export type ActiveTab = 'REGISTER' | 'ANALYTICS';
+// Re-exporta para compatibilidade com importadores existentes
+export type { SystemTab, ActiveTab } from './useUIState';
 
 export function useAppState() {
   // ── Persistência base (turnos, relógio, motorista, veículo) ──────────────
@@ -38,30 +37,17 @@ export function useAppState() {
     isLoadingFromServer,
   } = useShiftPersistence();
 
-  // ── Estado de UI ─────────────────────────────────────────────────────────
-  const [selectedShiftForReport, setSelectedShiftForReport] = useState<Shift | null>(null);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('TOTAL');
-
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() =>
-    (localStorage.getItem('moob_active_tab') as ActiveTab) || 'REGISTER'
-  );
-
-  const [systemTab, setSystemTab] = useState<SystemTab>(() =>
-    (localStorage.getItem('moob_system_tab') as SystemTab) || 'caixa'
-  );
-
-  const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
-
-  const [excludeSundays, setExcludeSundays] = useState<boolean>(
-    () => localStorage.getItem('moob_caixa_exclude_sundays') === 'true'
-  );
-
-  const [draftFuelLiters, setDraftFuelLiters] = useState<number>(0);
-  const [liveFuelLevel, setLiveFuelLevel] = useState<number | null>(null);
-
-  // Persiste tabs no localStorage
-  useEffect(() => { localStorage.setItem('moob_active_tab', activeTab); }, [activeTab]);
-  useEffect(() => { localStorage.setItem('moob_system_tab', systemTab); }, [systemTab]);
+  // ── Estado de UI (extraído em sub-hook dedicado) ──────────────────────────
+  const {
+    selectedShiftForReport, setSelectedShiftForReport,
+    periodFilter,           setPeriodFilter,
+    activeTab,              setActiveTab,
+    systemTab,              setSystemTab,
+    showWelcomeMsg,         setShowWelcomeMsg,
+    excludeSundays,         handleToggleExcludeSundays,
+    draftFuelLiters,        setDraftFuelLiters,
+    liveFuelLevel,          setLiveFuelLevel,
+  } = useUIState();
 
   // ── Confirm dialog ────────────────────────────────────────────────────────
   const { confirmDialog, setConfirmDialog } = useConfirmDialog();
@@ -172,12 +158,6 @@ export function useAppState() {
     fetchDbStatus();
     setDbConfigMessage(null);
     setShowDbConfigModal(true);
-  }
-
-  function handleToggleExcludeSundays() {
-    const next = !excludeSundays;
-    setExcludeSundays(next);
-    localStorage.setItem('moob_caixa_exclude_sundays', String(next));
   }
 
   function handleClearDbFields() {

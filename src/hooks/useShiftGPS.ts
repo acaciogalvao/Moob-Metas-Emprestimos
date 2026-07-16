@@ -48,6 +48,9 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
   const lastGpsFireRef      = useRef<number>(0);
   const lastProcessedRef    = useRef<number>(0); // rate limiting 5 Hz
   const lastSpeedKmhRef     = useRef(0);
+  // Janela deslizante para estimativa de velocidade média em background
+  const speedWindowRef      = useRef<number[]>([]);
+  const MAX_SPEED_WINDOW    = 5; // últimas 5 leituras válidas
   const gpsUpdatesInBgRef   = useRef(0);
   const isShiftOpenRef      = useRef(false);
   const shiftIdRef          = useRef<string | null>(null);
@@ -91,7 +94,14 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
       const speed = lastSpeedKmhRef.current;
 
       if (gpsUpdatesInBgRef.current === 0 && elapsedHours > 0.005 && speed > 3) {
-        const estimatedKm = speed * elapsedHours;
+        // Usa a velocidade média da janela deslizante em vez do último valor
+        // e aplica fator de correção 0.70 (motorista pode ter parado/desacelerado)
+        const win = speedWindowRef.current;
+        const avgSpeed = win.length > 0
+          ? win.reduce((a, b) => a + b, 0) / win.length
+          : speed;
+        const CORRECTION = 0.70;
+        const estimatedKm = avgSpeed * elapsedHours * CORRECTION;
         processorRef.current = {
           ...processorRef.current,
           tripKm:  processorRef.current.tripKm  + estimatedKm,
@@ -102,7 +112,7 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
         saveKmLocal(processorRef.current.tripKm);
         console.log(
           `[ShiftGPS] Estimativa background: +${estimatedKm.toFixed(3)} km` +
-          ` (${(elapsedHours * 60).toFixed(1)} min × ${speed.toFixed(0)} km/h)`
+          ` (${(elapsedHours * 60).toFixed(1)} min × ${avgSpeed.toFixed(0)} km/h avg × ${CORRECTION})`
         );
       } else {
         console.log(`[ShiftGPS] GPS OK em background — ${gpsUpdatesInBgRef.current} updates.`);
@@ -159,6 +169,13 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
 
         processorRef.current    = result.state;
         lastSpeedKmhRef.current = result.speedKmh;
+
+        // Mantém janela deslizante para estimativa de background
+        if (result.speedKmh > 0) {
+          const win = speedWindowRef.current;
+          win.push(result.speedKmh);
+          if (win.length > MAX_SPEED_WINDOW) win.shift();
+        }
 
         setSpeedKmh(result.speedKmh);
         setShiftKm(result.tripKm);

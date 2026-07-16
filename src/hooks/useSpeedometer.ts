@@ -19,12 +19,16 @@ export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, 
   const [speedSimCount, setSpeedSimCount] = useState<number>(0);
   const [isPipActive, setIsPipActive] = useState<boolean>(false);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const lastPositionRef = useRef<{ lat: number; lng: number; timestamp: number } | null>(null);
-  const currentSpeedRef = useRef<number>(0);
-  const speedHistoryRef = useRef<number[]>([]);
-  const speedSimCountRef = useRef<number>(0);
+  const canvasRef          = useRef<HTMLCanvasElement | null>(null);
+  const videoRef           = useRef<HTMLVideoElement | null>(null);
+  const lastPositionRef    = useRef<{ lat: number; lng: number; timestamp: number } | null>(null);
+  const currentSpeedRef    = useRef<number>(0);
+  const speedHistoryRef    = useRef<number[]>([]);
+  const speedSimCountRef   = useRef<number>(0);
+  // Throttle: evita redesenho quando velocidade não mudou
+  const lastDrawnSpeedRef  = useRef<number>(-1);
+  const lastGpsProcessRef  = useRef<number>(0);
+  const SPEEDOMETER_THROTTLE_MS = 250; // máx 4 Hz no callback GPS
 
   // Sync values with their mutable references
   useEffect(() => {
@@ -73,10 +77,15 @@ export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, 
       speedHistoryRef.current = [];
       watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const accuracy = position.coords.accuracy || 0;
           const now = position.timestamp || Date.now();
+
+          // Throttle GPS callback — máx 4 Hz (250 ms)
+          if (now - lastGpsProcessRef.current < SPEEDOMETER_THROTTLE_MS) return;
+          lastGpsProcessRef.current = now;
+
+          const lat      = position.coords.latitude;
+          const lng      = position.coords.longitude;
+          const accuracy = position.coords.accuracy || 0;
 
           let rawSpeedKmh = 0;
           const gpsSpeed = position.coords.speed; // in m/s
@@ -119,16 +128,19 @@ export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, 
           const smoothedSpeedKmh = Math.round(sum / history.length);
 
           setCurrentSpeed(smoothedSpeedKmh);
-          currentSpeedRef.current = smoothedSpeedKmh; // Update the ref immediately
+          currentSpeedRef.current = smoothedSpeedKmh;
 
-          // Draw directly to the canvas in the background thread callback to bypass React background-tab throttling
+          // Redesenha canvas apenas se a velocidade mudou (evita trabalho redundante)
           const canvas = canvasRef.current;
           if (canvas && isSpeedometerActive) {
             const speeds = [0, 24, 48, 72, 95, 120];
             const simCount = speedSimCountRef.current;
             const displaySpeed = simCount > 0 ? speeds[simCount % speeds.length] : smoothedSpeedKmh;
-            const isSimulated = simCount > 0;
-            drawSpeedometerCanvas(canvas, displaySpeed, isSimulated);
+            const isSimulated  = simCount > 0;
+            if (displaySpeed !== lastDrawnSpeedRef.current || isSimulated) {
+              lastDrawnSpeedRef.current = displaySpeed;
+              drawSpeedometerCanvas(canvas, displaySpeed, isSimulated);
+            }
           }
 
           // Save coordinates as anchor point for next interval calculation, provided accuracy is solid

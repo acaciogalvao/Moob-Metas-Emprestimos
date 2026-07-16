@@ -10,17 +10,22 @@
  *    Turnos que só existem localmente são sincronizados para o banco.
  *  - Toda ação do usuário (abrir caixa, lançamento, fechar) dispara um POST
  *    imediato para o banco + grava no localStorage — nunca perde dados.
- *  - Heartbeat a cada 500ms: mantém localStorage atualizado e retenta sync
- *    pendente quando a internet volta (offline-first para uso contínuo).
+ *  - Heartbeat a cada 2 s: persiste localStorage; sync com backoff exponencial
+ *    (2 s → 4 s → 8 s → … → 30 s) em caso de falha — evita spam de rede.
+ *  - Mutex isSyncingRef previne requisições simultâneas.
  *  - beforeunload/visibilitychange: flush garantido antes de sair/fechar.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Shift } from '../types';
 
-const SHIFTS_KEY = 'moob_caixa_shifts';
+const SHIFTS_KEY      = 'moob_caixa_shifts';
 const PENDING_SYNC_KEY = 'moob_caixa_pending_sync';
-const HEARTBEAT_MS = 500;
+
+// Intervalos em ms
+const LOCAL_PERSIST_MS  = 2_000;   // flush localStorage
+const SYNC_BACKOFF_INIT = 2_000;   // primeiro retry de sync após falha
+const SYNC_BACKOFF_MAX  = 30_000;  // teto do backoff exponencial
 
 export function useShiftPersistence() {
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -32,12 +37,16 @@ export function useShiftPersistence() {
   );
   const [isLoadingFromServer, setIsLoadingFromServer] = useState<boolean>(true);
 
-  // Refs sempre com o valor mais atual — usados pelo heartbeat e pelos
-  // listeners de unload/online, que não podem depender de closures antigas.
-  const shiftsRef = useRef<Shift[]>([]);
-  const lastPersistedRef = useRef<string>('');
-  const pendingSyncRef = useRef<boolean>(false);
-  const isSyncingRef = useRef<boolean>(false);
+  // Refs sempre com o valor mais atual — usados pelo heartbeat e listeners de
+  // unload/online que não podem depender de closures antigas.
+  const shiftsRef         = useRef<Shift[]>([]);
+  const lastPersistedRef  = useRef<string>('');
+  const pendingSyncRef    = useRef<boolean>(false);
+  const isSyncingRef      = useRef<boolean>(false);
+
+  // Backoff exponencial para sync em caso de falha
+  const retryDelayRef     = useRef<number>(SYNC_BACKOFF_INIT);
+  const nextSyncAtRef     = useRef<number>(0); // timestamp do próximo attempt
 
   useEffect(() => { shiftsRef.current = shifts; }, [shifts]);
 
@@ -49,6 +58,24 @@ export function useShiftPersistence() {
     localStorage.setItem(SHIFTS_KEY, serialized);
   }, []);
 
+  // ── Registra falha e calcula próximo attempt com backoff ─────────────────
+  const recordSyncFailure = useCallback(() => {
+    pendingSyncRef.current = true;
+    localStorage.setItem(PENDING_SYNC_KEY, 'true');
+    const delay = Math.min(retryDelayRef.current * 2, SYNC_BACKOFF_MAX);
+    retryDelayRef.current = delay;
+    nextSyncAtRef.current = Date.now() + delay;
+    console.warn(`[Sync] Falha — próximo retry em ${delay / 1000}s`);
+  }, []);
+
+  // ── Registra sucesso e reseta backoff ─────────────────────────────────────
+  const recordSyncSuccess = useCallback(() => {
+    pendingSyncRef.current = false;
+    localStorage.setItem(PENDING_SYNC_KEY, 'false');
+    retryDelayRef.current = SYNC_BACKOFF_INIT;
+    nextSyncAtRef.current = 0;
+  }, []);
+
   // ── Envia mudanças para o banco (upsert em lote) ─────────────────────────
   // Usado APENAS para salvar alterações do usuário — não para o carregamento
   // inicial. Isso evita sobrescrever dados mais novos do banco com dados
@@ -57,41 +84,34 @@ export function useShiftPersistence() {
     if (isSyncingRef.current) return;
     isSyncingRef.current = true;
 
-    fetch("/moob-api/shifts/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shifts: data })
+    fetch('/moob-api/shifts/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shifts: data }),
     })
       .then(res => {
         if (res.ok) return res.json();
-        throw new Error("Erro de conexão");
+        throw new Error('Erro de conexão');
       })
       .then(resData => {
-        pendingSyncRef.current = false;
-        localStorage.setItem(PENDING_SYNC_KEY, 'false');
+        recordSyncSuccess();
         if (Array.isArray(resData)) {
           setShifts(resData);
           persistLocal(resData);
           shiftsRef.current = resData;
         }
-        if (!silent) {
-          console.log("[Sync] Sincronização concluída com sucesso!");
-        }
+        if (!silent) console.log('[Sync] Sincronização concluída com sucesso!');
       })
       .catch(err => {
-        pendingSyncRef.current = true;
-        localStorage.setItem(PENDING_SYNC_KEY, 'true');
-        console.warn("[Sync] Sem internet ou banco indisponível — modo offline:", err);
+        recordSyncFailure();
+        console.warn('[Sync] Sem internet ou banco indisponível — modo offline:', err);
       })
       .finally(() => {
         isSyncingRef.current = false;
       });
-  }, [persistLocal]);
+  }, [persistLocal, recordSyncSuccess, recordSyncFailure]);
 
   // ── Carregamento inicial: banco é a fonte de verdade ─────────────────────
-  // Faz GET /moob-api/shifts/ e mescla com dados locais usando a regra:
-  // "quem tiver mais transações no turno aberto vence; turnos só-locais
-  // são mantidos e sincronizados para o banco".
   const loadFromServer = useCallback(async (localShifts: Shift[]) => {
     try {
       const res = await fetch('/moob-api/shifts/');
@@ -99,24 +119,20 @@ export function useShiftPersistence() {
       const dbShifts: Shift[] = await res.json();
       if (!Array.isArray(dbShifts)) throw new Error('Resposta inválida');
 
-      // Mescla: banco é a fonte primária
-      const dbMap = new Map(dbShifts.map(s => [s.id, s]));
+      const dbMap    = new Map(dbShifts.map(s => [s.id, s]));
       const localMap = new Map(localShifts.map(s => [s.id, s]));
       const merged: Shift[] = [];
 
-      // Para cada turno do banco: usa local se local tiver mais transações
       for (const dbShift of dbShifts) {
-        const local = localMap.get(dbShift.id);
-        const dbTxCount = dbShift.transactions?.length ?? 0;
+        const local      = localMap.get(dbShift.id);
+        const dbTxCount  = dbShift.transactions?.length ?? 0;
         const localTxCount = local?.transactions?.length ?? 0;
         merged.push(localTxCount > dbTxCount ? local! : dbShift);
       }
 
-      // Adiciona turnos que só existem localmente (ainda não sincronizados)
       const localOnly = localShifts.filter(s => !dbMap.has(s.id));
       for (const s of localOnly) merged.push(s);
 
-      // Ordena por data de abertura (mais recente primeiro)
       merged.sort((a, b) =>
         new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime()
       );
@@ -125,26 +141,21 @@ export function useShiftPersistence() {
       persistLocal(merged);
       shiftsRef.current = merged;
 
-      // Se há turnos só-locais, sobe para o banco
-      if (localOnly.length > 0) {
-        syncToCloud(merged, { silent: true });
-      }
+      if (localOnly.length > 0) syncToCloud(merged, { silent: true });
 
-      pendingSyncRef.current = false;
-      localStorage.setItem(PENDING_SYNC_KEY, 'false');
-      console.log(`[Sync] Carregamento inicial do banco concluído — ${merged.length} turno(s) restaurado(s).`);
-
+      recordSyncSuccess();
+      console.log(`[Sync] Boot concluído — ${merged.length} turno(s) restaurado(s).`);
     } catch (err) {
-      // Servidor offline ou iniciando: usa dados do localStorage
       pendingSyncRef.current = localShifts.length > 0;
       if (localShifts.length > 0) {
         localStorage.setItem(PENDING_SYNC_KEY, 'true');
+        nextSyncAtRef.current = Date.now() + SYNC_BACKOFF_INIT;
       }
-      console.warn('[Sync] Servidor indisponível no boot — usando dados locais. Retry automático ativo.', err);
+      console.warn('[Sync] Servidor indisponível no boot — usando dados locais.', err);
     } finally {
       setIsLoadingFromServer(false);
     }
-  }, [persistLocal, syncToCloud]);
+  }, [persistLocal, syncToCloud, recordSyncSuccess]);
 
   // ── Efeito de montagem ────────────────────────────────────────────────────
   useEffect(() => {
@@ -154,21 +165,20 @@ export function useShiftPersistence() {
       setCurrentTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     }, 1000);
 
-    // 2. Lê preferências do usuário
-    const savedName = localStorage.getItem('moob_caixa_driver_name');
+    // 2. Preferências do usuário
+    const savedName    = localStorage.getItem('moob_caixa_driver_name');
     const savedVehicle = localStorage.getItem('moob_caixa_vehicle_type');
     if (savedName) setDriverName(savedName);
     if (savedVehicle === 'CAR' || savedVehicle === 'BIKE') setVehicleType(savedVehicle);
 
-    // 3. Lê localStorage como fallback imediato (mostra dados locais enquanto
-    //    o banco carrega, evitando flash de tela vazia)
+    // 3. Lê localStorage como fallback imediato
     const savedShifts = localStorage.getItem(SHIFTS_KEY);
     let localShifts: Shift[] = [];
     if (savedShifts) {
       try {
         localShifts = JSON.parse(savedShifts);
         setShifts(localShifts);
-        shiftsRef.current = localShifts;
+        shiftsRef.current    = localShifts;
         lastPersistedRef.current = savedShifts;
       } catch (e) {
         console.error('Falha ao restaurar dados locais:', e);
@@ -176,8 +186,11 @@ export function useShiftPersistence() {
     }
 
     pendingSyncRef.current = localStorage.getItem(PENDING_SYNC_KEY) === 'true';
+    if (pendingSyncRef.current) {
+      nextSyncAtRef.current = Date.now() + SYNC_BACKOFF_INIT;
+    }
 
-    // 4. Busca do banco (fonte de verdade) — substitui/mescla com os dados locais
+    // 4. Fonte de verdade: banco de dados
     loadFromServer(localShifts);
 
     return () => clearInterval(timer);
@@ -188,16 +201,16 @@ export function useShiftPersistence() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      retryDelayRef.current = SYNC_BACKOFF_INIT; // reseta backoff ao voltar online
+      nextSyncAtRef.current = 0;
       console.log('[Sync] Conexão restaurada — sincronizando dados locais...');
-      // Ao voltar online: faz o carregamento completo do banco para garantir
-      // que qualquer dado adicionado em outra sessão seja trazido.
       loadFromServer(shiftsRef.current);
     };
     const handleOffline = () => {
       setIsOnline(false);
       pendingSyncRef.current = true;
       localStorage.setItem(PENDING_SYNC_KEY, 'true');
-      console.warn('[Sync] Sem internet — modo offline ativo. Dados salvos localmente.');
+      console.warn('[Sync] Sem internet — modo offline ativo.');
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -207,14 +220,24 @@ export function useShiftPersistence() {
     };
   }, [loadFromServer]);
 
-  // ── Heartbeat: persiste local a cada 500ms e retenta sync pendente ────────
+  // ── Heartbeat: persiste local a cada 2 s e retenta sync com backoff ───────
   useEffect(() => {
     const heartbeat = setInterval(() => {
+      // Sempre persiste localStorage (operação barata)
       persistLocal(shiftsRef.current);
-      if (pendingSyncRef.current && navigator.onLine && !isSyncingRef.current) {
+
+      // Sync só quando: há pendência, está online, não está sincronizando,
+      // e o backoff delay já passou
+      if (
+        pendingSyncRef.current &&
+        navigator.onLine &&
+        !isSyncingRef.current &&
+        Date.now() >= nextSyncAtRef.current
+      ) {
         syncToCloud(shiftsRef.current, { silent: true });
       }
-    }, HEARTBEAT_MS);
+    }, LOCAL_PERSIST_MS);
+
     return () => clearInterval(heartbeat);
   }, [persistLocal, syncToCloud]);
 
@@ -235,17 +258,19 @@ export function useShiftPersistence() {
   }, [persistLocal]);
 
   // ── API pública ──────────────────────────────────────────────────────────
-  // Salva localmente + sobe para o banco. Chamado por toda ação do usuário.
   const saveToLocalStorage = (newShifts: Shift[]) => {
     setShifts(newShifts);
     persistLocal(newShifts);
+    // Ação do usuário → sync imediato e reseta backoff
+    retryDelayRef.current = SYNC_BACKOFF_INIT;
+    nextSyncAtRef.current = 0;
     syncToCloud(newShifts, { silent: true });
   };
 
-  // Grava local imediatamente e agenda sync em segundo plano.
-  // Usado por ações que atualizam `shifts` via updater funcional.
   const queueCloudSync = useCallback((data: Shift[]) => {
     persistLocal(data);
+    retryDelayRef.current = SYNC_BACKOFF_INIT;
+    nextSyncAtRef.current = 0;
     syncToCloud(data, { silent: true });
   }, [persistLocal, syncToCloud]);
 

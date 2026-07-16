@@ -8,6 +8,68 @@ import { formatDecimalBRL, getTransactionFaturamentoReal, calculateExtraValue } 
 import { playBeep } from '../utils/audio';
 import { ConfirmDialogState } from './useConfirmDialog';
 
+// ─── Funções puras extraídas ──────────────────────────────────────────────────
+
+/** Arredonda para 2 casas decimais, eliminando erros de ponto flutuante. */
+function roundCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Recalcula o saldo esperado de fechamento a partir das transações.
+ * Extrai lógica duplicada de handleAddTransaction e executeDeleteTransaction.
+ */
+function computeExpectedBalance(txs: Transaction[], initialBalance: number): number {
+  const totalIn  = txs.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.value, 0);
+  const totalOut = txs.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.value, 0);
+  return roundCents(initialBalance + totalIn - totalOut);
+}
+
+type PaymentChannel = 'DINHEIRO' | 'PIX';
+
+/**
+ * Calcula o saldo esperado em um canal de pagamento (Dinheiro ou Pix) para um
+ * turno. Unifica a lógica antes duplicada em getExpectedPocketCashForShift e
+ * getExpectedPixBalanceForShift.
+ */
+function getExpectedChannelBalance(shift: Shift, channel: PaymentChannel): number {
+  const allIn   = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
+  const allOut  = shift.transactions.filter(t => t.type === 'OUT');
+
+  const channelIn = allIn.reduce((sum, t) => {
+    if (t.category === 'GORJETA') return sum;
+
+    // Pagamento direto no canal (Dinheiro ou Pix)
+    if (t.paymentMethod === channel) {
+      const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
+      return sum + (t.value - fee);
+    }
+
+    // Corrida no app com extra no canal (ex: cobrou diferença em Dinheiro)
+    if (t.paymentMethod === 'APP') {
+      const extraMethod = (t.extraPaymentMethod ?? '').toUpperCase() as PaymentChannel;
+      if (extraMethod === channel) {
+        const extra = t.extraChargedValue !== undefined
+          ? t.extraChargedValue
+          : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
+        return sum + extra;
+      }
+    }
+
+    return sum;
+  }, 0);
+
+  const channelOut = allOut
+    .filter(t => t.paymentMethod === channel)
+    .reduce((acc, t) => acc + t.value, 0);
+
+  const initialChannelBalance = channel === 'DINHEIRO'
+    ? (shift.initialCashBalance !== undefined ? shift.initialCashBalance : shift.initialBalance)
+    : (shift.initialPixBalance  !== undefined ? shift.initialPixBalance  : 0);
+
+  return roundCents(initialChannelBalance + channelIn - channelOut);
+}
+
 interface UseShiftActionsParams {
   shifts: Shift[];
   setShifts: React.Dispatch<React.SetStateAction<Shift[]>>;
@@ -111,14 +173,10 @@ export function useShiftActions({
 
           const trans = [...s.transactions, ...newTxs];
 
-          const totalIn = trans.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.value, 0);
-          const totalOut = trans.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.value, 0);
-          const expected = s.initialBalance + totalIn - totalOut;
-
           return {
             ...s,
             transactions: trans,
-            closingBalanceExpected: Math.round(expected * 100) / 100
+            closingBalanceExpected: computeExpectedBalance(trans, s.initialBalance),
           };
         }
         return s;
@@ -146,15 +204,10 @@ export function useShiftActions({
       const matchTx = s.transactions.some(t => t.id === txId);
       if (matchTx) {
         const remaining = s.transactions.filter(t => t.id !== txId);
-
-        const totalIn = remaining.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.value, 0);
-        const totalOut = remaining.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.value, 0);
-        const expected = s.initialBalance + totalIn - totalOut;
-
         return {
           ...s,
           transactions: remaining,
-          closingBalanceExpected: Math.round(expected * 100) / 100
+          closingBalanceExpected: computeExpectedBalance(remaining, s.initialBalance),
         };
       }
       return s;
@@ -195,57 +248,11 @@ export function useShiftActions({
   ) => {
     if (!activeShift) return;
 
-    const getExpectedPocketCashForShift = (shift: Shift) => {
-      const allInTransactions = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
-      const expenses = shift.transactions.filter(t => t.type === 'OUT');
-      // Tips and independent GORJETA entries always go straight to the platform (app) balance —
-      // never to Pix/Dinheiro — for every ride type (normal Pix/Dinheiro or Direto no App).
-      const cashIn = allInTransactions.reduce((sum, t) => {
-        if (t.category === 'GORJETA') return sum;
-        if (t.paymentMethod === 'DINHEIRO') {
-          const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
-          return sum + (t.value - fee);
-        }
-        if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'DINHEIRO' || t.extraPaymentMethod === 'dinheiro')) {
-          const extra = t.extraChargedValue !== undefined
-            ? t.extraChargedValue
-            : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-          return sum + extra;
-        }
-        return sum;
-      }, 0);
-      const cashOut = expenses.filter(t => t.paymentMethod === 'DINHEIRO').reduce((acc, t) => acc + t.value, 0);
-      const initialCash = shift.initialCashBalance !== undefined ? shift.initialCashBalance : shift.initialBalance;
-      return initialCash + cashIn - cashOut;
-    };
+    const expectedPocketCash = getExpectedChannelBalance(activeShift, 'DINHEIRO');
+    const diff               = roundCents(closingBalanceReal - expectedPocketCash);
 
-    const getExpectedPixBalanceForShift = (shift: Shift) => {
-      const allInTransactions = shift.transactions.filter(t => t.type === 'IN' && !t.isVirtual);
-      const expenses = shift.transactions.filter(t => t.type === 'OUT');
-      const pixIn = allInTransactions.reduce((sum, t) => {
-        if (t.category === 'GORJETA') return sum;
-        if (t.paymentMethod === 'PIX') {
-          const fee = t.category === 'SAQUE_APP' ? (t.withdrawalFee || 0) : 0;
-          return sum + (t.value - fee);
-        }
-        if (t.paymentMethod === 'APP' && (t.extraPaymentMethod === 'PIX' || t.extraPaymentMethod === 'pix')) {
-          const extra = t.extraChargedValue !== undefined
-            ? t.extraChargedValue
-            : calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-          return sum + extra;
-        }
-        return sum;
-      }, 0);
-      const pixOut = expenses.filter(t => t.paymentMethod === 'PIX').reduce((acc, t) => acc + t.value, 0);
-      const initialPix = shift.initialPixBalance !== undefined ? shift.initialPixBalance : 0;
-      return initialPix + pixIn - pixOut;
-    };
-
-    const expectedPocketCash = getExpectedPocketCashForShift(activeShift);
-    const diff = Math.round((closingBalanceReal - expectedPocketCash) * 100) / 100;
-
-    const expectedPixBalance = getExpectedPixBalanceForShift(activeShift);
-    const diffPix = Math.round((closingPixReal - expectedPixBalance) * 100) / 100;
+    const expectedPixBalance = getExpectedChannelBalance(activeShift, 'PIX');
+    const diffPix            = roundCents(closingPixReal - expectedPixBalance);
 
     const closed: Shift = {
       ...activeShift,

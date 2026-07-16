@@ -1,8 +1,14 @@
 /**
  * useWakeLock.ts — Hook for Screen Wake Lock management.
+ *
+ * Melhorias:
+ *  - Auto-release após 5 min em segundo plano (poupa bateria)
+ *  - Re-aquire automático ao voltar ao primeiro plano
  */
 
 import { useState, useEffect, useRef } from 'react';
+
+const BG_AUTO_RELEASE_MS = 5 * 60 * 1000; // 5 minutos
 
 export function useWakeLock() {
   const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
@@ -12,31 +18,33 @@ export function useWakeLock() {
     }
     return false;
   });
-  const wakeLockRef = useRef<any>(null);
-  const wakeLockEnabledRef = useRef<boolean>(false);
 
-  // Sync ref
+  const wakeLockRef        = useRef<WakeLockSentinel | null>(null);
+  const wakeLockEnabledRef = useRef<boolean>(false);
+  const bgTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     wakeLockEnabledRef.current = wakeLockEnabled;
   }, [wakeLockEnabled]);
 
   const requestWakeLock = async () => {
-    if (typeof window !== 'undefined' && 'wakeLock' in navigator) {
-      try {
-        if (!wakeLockRef.current) {
-          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-          setIsWakeLockActive(true);
-          console.log('[WakeLock] Screen Wake Lock acquired successfully');
-          wakeLockRef.current.addEventListener('release', () => {
-            console.log('[WakeLock] Screen Wake Lock was released by the browser');
-            wakeLockRef.current = null;
-            setIsWakeLockActive(false);
-          });
-        }
-      } catch (err) {
-        console.warn('[WakeLock] Wake Lock request failed:', err);
-        setIsWakeLockActive(false);
+    if (typeof window === 'undefined' || !('wakeLock' in navigator)) return;
+    try {
+      if (!wakeLockRef.current) {
+        wakeLockRef.current = await (navigator as Navigator & {
+          wakeLock: { request(t: string): Promise<WakeLockSentinel> };
+        }).wakeLock.request('screen');
+        setIsWakeLockActive(true);
+        console.log('[WakeLock] Adquirido com sucesso.');
+        wakeLockRef.current.addEventListener('release', () => {
+          console.log('[WakeLock] Liberado pelo sistema operacional.');
+          wakeLockRef.current = null;
+          setIsWakeLockActive(false);
+        });
       }
+    } catch (err) {
+      console.warn('[WakeLock] Falha ao adquirir:', err);
+      setIsWakeLockActive(false);
     }
   };
 
@@ -46,18 +54,37 @@ export function useWakeLock() {
         await wakeLockRef.current.release();
         wakeLockRef.current = null;
         setIsWakeLockActive(false);
-        console.log('[WakeLock] Screen Wake Lock released manually');
+        console.log('[WakeLock] Liberado manualmente.');
       } catch (err) {
-        console.error('[WakeLock] Wake Lock release error:', err);
+        console.error('[WakeLock] Erro ao liberar:', err);
       }
     }
   };
 
-  // Attempt to lock screen on mount, touch, and visibility change
+  // ── Auto-release em background + reaquire ao voltar ─────────────────────
   useEffect(() => {
+    const clearBgTimer = () => {
+      if (bgTimerRef.current !== null) {
+        clearTimeout(bgTimerRef.current);
+        bgTimerRef.current = null;
+      }
+    };
+
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && wakeLockEnabledRef.current) {
-        await requestWakeLock();
+      if (document.visibilityState === 'hidden') {
+        // Iniciar contagem: libera lock após 5 min de background
+        if (wakeLockEnabledRef.current && wakeLockRef.current) {
+          bgTimerRef.current = setTimeout(async () => {
+            await releaseWakeLock();
+            console.log('[WakeLock] Auto-release após 5 min em background.');
+          }, BG_AUTO_RELEASE_MS);
+        }
+      } else {
+        // Voltou ao primeiro plano: cancela timer e reaquire se habilitado
+        clearBgTimer();
+        if (wakeLockEnabledRef.current) {
+          await requestWakeLock();
+        }
       }
     };
 
@@ -67,22 +94,22 @@ export function useWakeLock() {
       }
     };
 
-    // If enabled initially, request lock
     if (wakeLockEnabled) {
       requestWakeLock();
     }
 
-    // Event listeners to handle user interaction and visibility
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('click', handleInteraction, { passive: true });
-    window.addEventListener('touchstart', handleInteraction, { passive: true });
+    window.addEventListener('click',       handleInteraction, { passive: true });
+    window.addEventListener('touchstart',  handleInteraction, { passive: true });
 
     return () => {
+      clearBgTimer();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('click',      handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);
       releaseWakeLock();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
