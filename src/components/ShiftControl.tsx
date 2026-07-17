@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, ArrowUpRight, ArrowDownRight, Wallet, Clipboard, 
-  RefreshCw, CheckCircle, AlertTriangle, Play, Calendar, HelpCircle, Eye, Coins, TrendingUp, MapPin, Info, Clock, X, Trash2, Fuel, Plus, Route
+  RefreshCw, CheckCircle, AlertTriangle, Play, Calendar, HelpCircle, Eye, Coins, TrendingUp, MapPin, Info, Clock, X, Trash2, Fuel
 } from 'lucide-react';
 import { Shift, Transaction } from '../types';
 import { playBeep, playCashRegister } from '../utils/audio';
@@ -99,8 +99,6 @@ export function ShiftControl({
     }
   };
 
-  const [showExtraKmSheet, setShowExtraKmSheet] = useState(false);
-  const [extraKmInputVal, setExtraKmInputVal] = useState('');
   const [isClosingOpen, setIsClosingOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [realCashInput, setRealCashInput] = useState('');
@@ -1014,11 +1012,9 @@ export function ShiftControl({
   const totalKmOdometerCalibrated = (lastCalibratedOdo !== undefined && activeShift && activeShift.initialOdometer !== undefined)
     ? (lastCalibratedOdo - activeShift.initialOdometer)
     : 0;
-  const platformKmRun = totalKmOdometerCalibrated > 0
+  const displayKmRun = totalKmOdometerCalibrated > 0
     ? (totalKmOdometerCalibrated + rideKmSinceCalibration)
     : totalKmRun;
-  const shiftExtraKm = (activeShift?.extraKm ?? 0);
-  const displayKmRun = platformKmRun + shiftExtraKm;
 
   // GPS e odômetro/corridas medem a MESMA distância do turno por métodos diferentes.
   // Usa a maior das duas estimativas (GPS costuma cobrir também trechos sem corrida)
@@ -1218,17 +1214,14 @@ export function ShiftControl({
           </div>
         </div>
 
-        {/* PAINEL DE BORDO + KM EXTRA */}
+        {/* PAINEL DE BORDO */}
         {activeShift && (
-          <>
           <PainelBordo
             activeShift={activeShift}
             fuelLitersRemaining={currentFuelLiters}
             fuelCapacity={activeCapacity}
             autonomyKmPerL={activeConsumption}
             totalKmRun={displayKmRun}
-            platformKmRun={platformKmRun}
-            extraKm={shiftExtraKm}
             remainingKm={remainingKm}
             vehicleType={fuelVehicleType}
             onToggleVehicle={toggleFuelVehicleType}
@@ -1240,114 +1233,6 @@ export function ShiftControl({
             externalAccuracy={gpsAccuracy}
             isGpsBackground={isGpsBackground}
           />
-
-          {/* Botão: +KM rodado fora das plataformas */}
-          <button
-            onClick={() => { setShowExtraKmSheet(true); setExtraKmInputVal(''); }}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/60 border border-slate-700/40 hover:border-slate-600 hover:bg-slate-800/60 transition-all group"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-violet-500/15 border border-violet-500/25 flex items-center justify-center">
-                <Route className="w-3.5 h-3.5 text-violet-400" />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-slate-300">KM fora das plataformas</p>
-                <p className="text-[10px] text-slate-500">
-                  {shiftExtraKm > 0 ? `${shiftExtraKm.toFixed(1).replace('.', ',')} km adicionados` : 'Adicionar km rodado sem app'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {shiftExtraKm > 0 && (
-                <span className="text-xs font-mono font-bold text-violet-300">+{shiftExtraKm.toFixed(1).replace('.', ',')} km</span>
-              )}
-              <Plus className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
-            </div>
-          </button>
-
-          <AnimatePresence>
-            {showExtraKmSheet && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4"
-                onClick={e => { if (e.target === e.currentTarget) setShowExtraKmSheet(false); }}
-              >
-                <motion.div
-                  initial={{ y: 60, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 60, opacity: 0 }}
-                  transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                  className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700/70 shadow-2xl overflow-hidden"
-                >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <Route className="w-4 h-4 text-violet-400" />
-                      <p className="text-sm font-bold text-white">KM fora das plataformas</p>
-                    </div>
-                    <button onClick={() => setShowExtraKmSheet(false)} className="text-slate-400 hover:text-white">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    <p className="text-xs text-slate-400">
-                      Km rodados sem corrida ativa (deslocamento até pontos, retorno para casa, comissões etc.). Somados ao total do turno.
-                    </p>
-                    {shiftExtraKm > 0 && (
-                      <div className="flex items-center justify-between bg-violet-950/40 border border-violet-500/25 rounded-xl px-3 py-2">
-                        <span className="text-xs text-slate-400">Já registrado neste turno:</span>
-                        <span className="text-sm font-mono font-bold text-violet-300">{shiftExtraKm.toFixed(1).replace('.', ',')} km</span>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block font-semibold">Adicionar quantos km?</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={extraKmInputVal}
-                          onChange={e => setExtraKmInputVal(e.target.value)}
-                          placeholder="ex: 12.5"
-                          autoFocus
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 font-mono"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">km</span>
-                      </div>
-                    </div>
-                    {shiftExtraKm > 0 && (
-                      <button
-                        onClick={() => {
-                          if (onUpdateActiveShift) onUpdateActiveShift({ extraKm: 0 });
-                          setShowExtraKmSheet(false);
-                        }}
-                        className="w-full py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 text-xs font-semibold transition-colors"
-                      >
-                        🗑 Zerar km extra
-                      </button>
-                    )}
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => setShowExtraKmSheet(false)}
-                        className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-sm font-semibold border border-slate-700"
-                      >Cancelar</button>
-                      <button
-                        onClick={() => {
-                          const km = parseFloat(extraKmInputVal.replace(',', '.'));
-                          if (!isNaN(km) && km > 0 && onUpdateActiveShift) {
-                            onUpdateActiveShift({ extraKm: (activeShift?.extraKm ?? 0) + km });
-                          }
-                          setShowExtraKmSheet(false);
-                        }}
-                        className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-black transition-colors active:scale-[0.98]"
-                      >✓ Adicionar</button>
-                    </div>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          </>
         )}
 
         {/* MONITOR DE COMBUSTÍVEL */}

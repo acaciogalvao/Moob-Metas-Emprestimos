@@ -79,7 +79,6 @@ export interface Shift {
   initialFuelLevel?: string; // Nível inicial do tanque (Cheio, Meio, Reserva, Custom)
   finalFuelLiters?: number; // Litros finais no tanque ao fechar caixa
   finalFuelLevel?: string; // Nível final do tanque ao fechar caixa
-  extraKm?: number; // KM rodados fora das plataformas (manual)
   monthlyGoal?: number; // Meta Mensal de Faturamento Real
   dailyKmGoal?: number; // Meta Diária de KM Rodados
   ajusteSaldoAnterior?: number; // Ajuste do saldo anterior (valor de entrada - saldo anterior)

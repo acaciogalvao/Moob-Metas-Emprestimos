@@ -10,9 +10,7 @@ interface PainelBordoProps {
   fuelLitersRemaining: number;   // litros restantes estimados
   fuelCapacity: number;           // capacidade do tanque
   autonomyKmPerL: number;         // km/L configurado
-  totalKmRun: number;             // km rodados (odômetro via transações) + extraKm
-  platformKmRun: number;          // km apenas nas plataformas (sem extraKm)
-  extraKm: number;                // km rodados fora das plataformas (manual)
+  totalKmRun: number;             // km rodados (odômetro via transações)
   remainingKm: number;            // km que ainda dá pra rodar com o combustível
   vehicleType: 'CARRO' | 'MOTO';
   onToggleVehicle?: () => void;   // alterna entre Carro e Moto
@@ -60,8 +58,6 @@ export function PainelBordo({
   fuelCapacity,
   autonomyKmPerL,
   totalKmRun,
-  platformKmRun,
-  extraKm,
   remainingKm,
   vehicleType,
   onToggleVehicle,
@@ -442,9 +438,7 @@ export function PainelBordo({
                     : '0,0 km'}
                 </span>
                 <span className="text-[9px] text-emerald-500/60 font-mono leading-none">
-                  {extraKm > 0
-                    ? `plat.${platformKmRun >= 0.1 ? ` ${platformKmRun.toFixed(1).replace('.', ',')}` : ' 0,0'} + fora ${extraKm.toFixed(1).replace('.', ',')}`
-                    : gpsShiftKm >= 0.1 && totalKmRun >= 0.1
+                  {gpsShiftKm >= 0.1 && totalKmRun >= 0.1
                     ? 'GPS + corridas'
                     : gpsShiftKm >= 0.1
                     ? 'GPS'
