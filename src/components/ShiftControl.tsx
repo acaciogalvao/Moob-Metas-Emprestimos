@@ -259,35 +259,21 @@ export function ShiftControl({
 
   useEffect(() => {
     if (isClosingOpen && activeShift) {
-      // Se temos litros iniciais e km rodado, calcula o combustível restante estimado:
-      // restante = inicial + abastecido_no_turno - (km ÷ consumo)
-      const txLiters = activeShift.transactions
-        ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
-        ?.reduce((acc, t) => acc + (t.liters || 0), 0) || 0;
-
-      if (activeShift.initialFuelLiters !== undefined && displayKmRun > 0 && activeConsumption > 0) {
-        const estimatedConsumed = displayKmRun / activeConsumption;
-        const estimatedRemaining = Math.max(0, activeShift.initialFuelLiters + txLiters - estimatedConsumed);
-        setFinalFuelLitersInput(estimatedRemaining.toFixed(1).replace('.', ','));
+      const initialLevelLabel = activeShift.initialFuelLevel;
+      if (initialLevelLabel === 'Cheio') {
+        setFinalFuelLevel('CHEIO');
+      } else if (initialLevelLabel === 'Meio Tanque') {
+        setFinalFuelLevel('MEIO');
+      } else if (initialLevelLabel === 'Reserva') {
+        setFinalFuelLevel('RESERVA');
+      } else if (initialLevelLabel === 'Digitado' || activeShift.initialFuelLiters !== undefined) {
         setFinalFuelLevel('CUSTOM');
-      } else {
-        // Fallback: espelha o nível inicial do turno
-        const initialLevelLabel = activeShift.initialFuelLevel;
-        if (initialLevelLabel === 'Cheio') {
-          setFinalFuelLevel('CHEIO');
-        } else if (initialLevelLabel === 'Meio Tanque') {
-          setFinalFuelLevel('MEIO');
-        } else if (initialLevelLabel === 'Reserva') {
-          setFinalFuelLevel('RESERVA');
-        } else {
-          setFinalFuelLevel('CUSTOM');
-          if (activeShift.initialFuelLiters !== undefined) {
-            setFinalFuelLitersInput(activeShift.initialFuelLiters.toFixed(1).replace('.', ','));
-          }
+        if (activeShift.initialFuelLiters !== undefined) {
+          setFinalFuelLitersInput(activeShift.initialFuelLiters.toFixed(1).replace('.', ','));
         }
       }
     }
-  }, [isClosingOpen, activeShift, displayKmRun, activeConsumption]);
+  }, [isClosingOpen, activeShift]);
 
   const [isEditingConsumption, setIsEditingConsumption] = useState(false);
   const [isEditingCapacity, setIsEditingCapacity] = useState(false);
@@ -1100,12 +1086,18 @@ export function ShiftControl({
                 setTotalLitersInput(fuelTxLiters.toFixed(2).replace('.', ','));
               } else if (activeShift.initialFuelLiters === undefined && displayKmRun > 0 && activeConsumption > 0) {
                 // Sem nível inicial e sem abastecimentos: estima consumo total via km ÷ consumo
-                // (fórmula: consumed = lts quando não há initialFuelLiters)
-                const estimatedLiters = displayKmRun / activeConsumption;
-                setTotalLitersInput(estimatedLiters.toFixed(2).replace('.', ','));
+                setTotalLitersInput((displayKmRun / activeConsumption).toFixed(2).replace('.', ','));
               } else {
-                // Há nível inicial: consumo é derivado da diferença initial - final (calculada no gauge)
+                // Há nível inicial: consumo derivado da diferença initial - final (via gauge)
                 setTotalLitersInput('');
+              }
+
+              // Auto-posiciona o ponteiro do gauge: restante = inicial + abastecido − (km ÷ consumo)
+              if (activeShift.initialFuelLiters !== undefined && displayKmRun > 0 && activeConsumption > 0) {
+                const estimatedConsumed = displayKmRun / activeConsumption;
+                const estimatedRemaining = Math.max(0, activeShift.initialFuelLiters + fuelTxLiters - estimatedConsumed);
+                setFinalFuelLitersInput(estimatedRemaining.toFixed(1).replace('.', ','));
+                setFinalFuelLevel('CUSTOM');
               }
 
               // Auto-fill final odometer with (odômetro inicial + km rodados) so the driver only
