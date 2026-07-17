@@ -3294,6 +3294,25 @@ export function ShiftControl({
                           onChange={(e) => {
                             const sanitized = e.target.value.replace(/[^0-9.,]/g, '');
                             setTotalLitersInput(sanitized);
+
+                            // Atualiza o ponteiro do gauge em tempo real
+                            if (activeShift?.initialFuelLiters !== undefined) {
+                              const parsedLts = parseFloat(sanitized.replace(',', '.')) || 0;
+                              const hasTxLiters = (activeShift.transactions
+                                ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
+                                ?.reduce((acc, t) => acc + (t.liters || 0), 0) || 0) > 0;
+
+                              let remaining: number;
+                              if (hasTxLiters && displayKmRun > 0 && activeConsumption > 0) {
+                                // Campo = litros abastecidos → final = inicial + abastecido − consumo_estimado
+                                remaining = Math.max(0, activeShift.initialFuelLiters + parsedLts - displayKmRun / activeConsumption);
+                              } else {
+                                // Campo = litros consumidos → final = inicial − consumido
+                                remaining = Math.max(0, activeShift.initialFuelLiters - parsedLts);
+                              }
+                              setFinalFuelLitersInput(remaining.toFixed(1).replace('.', ','));
+                              setFinalFuelLevel('CUSTOM');
+                            }
                           }}
                         />
                       </div>
