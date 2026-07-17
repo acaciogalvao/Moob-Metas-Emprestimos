@@ -1113,10 +1113,14 @@ export function ShiftControl({
                 setFinalFuelLevel('CUSTOM');
               }
 
-              // Auto-fill final odometer with (odômetro inicial + km rodados) so the driver only
-              // needs to correct it if it differs from the real reading.
+              // Auto-fill final odometer with (odômetro inicial + GPS km + km das plataformas).
+              // GPS cobre os deslocamentos do turno e as corridas das plataformas (Uber/99)
+              // complementam com os km registrados nas transações — o campo fica editável
+              // caso o valor real do hodômetro seja diferente.
               if (activeShift && activeShift.initialOdometer !== undefined) {
-                setFinalOdometerInput(formatOdometer(activeShift.initialOdometer + displayKmRun));
+                const gpsKm = gpsShiftKm || 0;
+                const totalKmForOdometer = gpsKm + totalKmRun;
+                setFinalOdometerInput(formatOdometer(activeShift.initialOdometer + totalKmForOdometer));
               } else {
                 setFinalOdometerInput('');
               }
