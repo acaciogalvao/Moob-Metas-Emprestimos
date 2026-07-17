@@ -1004,7 +1004,34 @@ export function ShiftControl({
 
   const finalFuelConsumed = activeConsumption > 0 ? (rideKmSinceCalibration / activeConsumption) : 0;
   currentFuelLiters = Math.max(0, Math.min(activeCapacity, lastCalibratedFuel - finalFuelConsumed + refuelsSinceCalibration));
-  
+
+  // Calcula displayKmRun e kmForFuelCalc ANTES de remainingKm para que o GPS
+  // possa drenar o tanque em tempo real quando percorre mais km do que as transações.
+  const totalKmOdometerCalibrated = (lastCalibratedOdo !== undefined && activeShift && activeShift.initialOdometer !== undefined)
+    ? (lastCalibratedOdo - activeShift.initialOdometer)
+    : 0;
+  const displayKmRun = totalKmOdometerCalibrated > 0
+    ? (totalKmOdometerCalibrated + rideKmSinceCalibration)
+    : totalKmRun;
+
+  // GPS e odômetro/corridas medem a MESMA distância do turno por métodos diferentes.
+  // Usa a maior das duas estimativas (GPS costuma cobrir também trechos sem corrida)
+  // para que os litros consumidos calculados aqui fiquem na mesma base de km que o
+  // PainelBordo usa no cálculo do "consumo real" — senão o km/L exibido lá diverge
+  // do km/L configurado/calibrado do veículo.
+  const kmForFuelCalc = Math.max(displayKmRun, gpsShiftKm || 0);
+
+  // Quando o GPS percorreu mais km do que as transações registram, drena o tanque
+  // proporcionalmente — assim Combustível e Autonomia atualizam em tempo real
+  // conforme os km do turno aumentam, a cada ml consumido pelo GPS.
+  if (activeConsumption > 0 && kmForFuelCalc > displayKmRun) {
+    const gpsConsumed = kmForFuelCalc / activeConsumption;
+    const gpsFuelRemaining = Math.max(0, initialFuel + fuelTxLiters - gpsConsumed);
+    if (gpsFuelRemaining < currentFuelLiters) {
+      currentFuelLiters = gpsFuelRemaining;
+    }
+  }
+
   const remainingKm = activeConsumption > 0 ? currentFuelLiters * activeConsumption : 0;
 
   // Live preview: while the user is typing in the refuel form in QuickRegister, update the gauge.
@@ -1018,20 +1045,7 @@ export function ShiftControl({
       ))
     : currentFuelLiters;
 
-  const totalKmOdometerCalibrated = (lastCalibratedOdo !== undefined && activeShift && activeShift.initialOdometer !== undefined)
-    ? (lastCalibratedOdo - activeShift.initialOdometer)
-    : 0;
-  const displayKmRun = totalKmOdometerCalibrated > 0 
-    ? (totalKmOdometerCalibrated + rideKmSinceCalibration) 
-    : totalKmRun;
   const fuelConsumed = activeConsumption > 0 ? (displayKmRun / activeConsumption) : 0;
-
-  // GPS e odômetro/corridas medem a MESMA distância do turno por métodos diferentes.
-  // Usa a maior das duas estimativas (GPS costuma cobrir também trechos sem corrida)
-  // para que os litros consumidos calculados aqui fiquem na mesma base de km que o
-  // PainelBordo usa no cálculo do "consumo real" — senão o km/L exibido lá diverge
-  // do km/L configurado/calibrado do veículo.
-  const kmForFuelCalc = Math.max(displayKmRun, gpsShiftKm || 0);
 
   // Real-time metrics for current active shift
   const displayKm = refuelMetrics ? (refuelMetrics.isCurrentShift ? displayKmRun : refuelMetrics.kmDriven) : 0;
