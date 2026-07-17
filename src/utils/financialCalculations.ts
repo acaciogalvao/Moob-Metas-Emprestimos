@@ -440,6 +440,37 @@ export function computeFinancialTotalsCached(
 }
 
 /**
+ * Retorna o total de dias úteis no mês atual (excluindo domingos se configurado).
+ */
+function getWorkingDaysInCurrentMonth(excludeSundays: boolean): number {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(now.getFullYear(), now.getMonth(), d).getDay();
+    if (excludeSundays && dow === 0) continue;
+    count++;
+  }
+  return Math.max(count, 1);
+}
+
+/**
+ * Retorna os dias úteis restantes no mês atual a partir de hoje (inclusive).
+ */
+export function getRemainingWorkingDays(excludeSundays: boolean): number {
+  const now = new Date();
+  const today = now.getDate();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  let count = 0;
+  for (let d = today; d <= lastDay; d++) {
+    const dow = new Date(now.getFullYear(), now.getMonth(), d).getDay();
+    if (excludeSundays && dow === 0) continue;
+    count++;
+  }
+  return Math.max(count, 1);
+}
+
+/**
  * Computes monthly goal math.
  */
 export function computeMonthlyGoalMath(
@@ -448,7 +479,7 @@ export function computeMonthlyGoalMath(
   faturamentoPosDespesas: number
 ) {
   const currentMonthlyGoal = activeShift?.monthlyGoal || parseFloat((localStorage.getItem('moob_caixa_monthly_goal') || '6.000,00').replace(/\./g, '').replace(',', '.')) || 6000;
-  const daysInMonth = excludeSundays ? 26 : 30;
+  const daysInMonth = getWorkingDaysInCurrentMonth(excludeSundays);
   const daysInWeek = excludeSundays ? 6 : 7;
   const dailyGoal = currentMonthlyGoal / daysInMonth;
   const weeklyGoal = dailyGoal * daysInWeek;

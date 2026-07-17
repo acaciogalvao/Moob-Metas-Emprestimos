@@ -57,8 +57,9 @@ const MAINTENANCE_TYPES: MaintenanceTypeConfig[] = [
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
-const RECORDS_KEY = 'moob_oficina_records';
-const SETTINGS_KEY = 'moob_oficina_settings';
+const RECORDS_KEY      = 'moob_oficina_records';
+const SETTINGS_KEY     = 'moob_oficina_settings';
+const CUSTOM_TYPES_KEY = 'moob_oficina_custom_types';
 
 function loadRecords(): MaintenanceRecord[] {
   try {
@@ -82,10 +83,21 @@ function saveSettings(settings: MaintenanceSettings[]) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-function getSettingsFor(typeId: string, allSettings: MaintenanceSettings[]): MaintenanceSettings {
+function loadCustomTypes(): MaintenanceTypeConfig[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TYPES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveCustomTypes(types: MaintenanceTypeConfig[]) {
+  localStorage.setItem(CUSTOM_TYPES_KEY, JSON.stringify(types));
+}
+
+function getSettingsFor(typeId: string, allSettings: MaintenanceSettings[], allTypes: MaintenanceTypeConfig[]): MaintenanceSettings {
   const found = allSettings.find(s => s.typeId === typeId);
-  const def = MAINTENANCE_TYPES.find(t => t.id === typeId)!;
-  return found ?? { typeId, kmInterval: def.defaultKmInterval, alertKm: def.defaultAlertKm };
+  const def = allTypes.find(t => t.id === typeId);
+  return found ?? { typeId, kmInterval: def?.defaultKmInterval ?? 5000, alertKm: def?.defaultAlertKm ?? 500 };
 }
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
@@ -120,6 +132,7 @@ interface OficinaAppProps {
 export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: OficinaAppProps) {
   const [records, setRecords] = useState<MaintenanceRecord[]>(loadRecords);
   const [settings, setSettings] = useState<MaintenanceSettings[]>(loadSettings);
+  const [customTypes, setCustomTypes] = useState<MaintenanceTypeConfig[]>(loadCustomTypes);
 
   // Form state
   const [registeringType, setRegisteringType] = useState<string | null>(null);
@@ -136,9 +149,20 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
   const [settingsKmInterval, setSettingsKmInterval] = useState('');
   const [settingsAlertKm, setSettingsAlertKm] = useState('');
 
-  // Persist records/settings whenever they change
+  // Nova categoria modal
+  const [showAddType, setShowAddType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeEmoji, setNewTypeEmoji] = useState('🔩');
+  const [newTypeKm, setNewTypeKm] = useState('5000');
+  const [newTypeAlert, setNewTypeAlert] = useState('500');
+
+  // Persist records/settings/customTypes whenever they change
   useEffect(() => { saveRecords(records); }, [records]);
   useEffect(() => { saveSettings(settings); }, [settings]);
+  useEffect(() => { saveCustomTypes(customTypes); }, [customTypes]);
+
+  // Tipos disponíveis = padrão + personalizados
+  const allTypes = [...MAINTENANCE_TYPES, ...customTypes];
 
   // Current odometer estimate
   const currentOdometer = useCallback((): number | null => {
@@ -170,7 +194,6 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
     const last = lastRecordFor(typeId);
     const odo = currentOdometer();
     if (!last || odo === null) return null;
-    const cfg = getSettingsFor(typeId, settings);
     const nextAt = last.odometer + last.kmInterval;
     return nextAt - odo;
   }
@@ -178,7 +201,7 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
   function statusFor(typeId: string): 'ok' | 'alert' | 'due' | 'unknown' {
     const remaining = kmUntilNext(typeId);
     if (remaining === null) return 'unknown';
-    const cfg = getSettingsFor(typeId, settings);
+    const cfg = getSettingsFor(typeId, settings, allTypes);
     if (remaining <= 0) return 'due';
     if (remaining <= cfg.alertKm) return 'alert';
     return 'ok';
@@ -189,7 +212,7 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
   function openRegisterForm(typeId: string) {
     playBeep();
     const odo = currentOdometer();
-    const cfg = getSettingsFor(typeId, settings);
+    const cfg = getSettingsFor(typeId, settings, allTypes);
     setFormOdo(odo ? formatOdometer(odo) : '');
     setFormCost('');
     setFormNotes('');
@@ -201,11 +224,11 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
     if (!registeringType) return;
     const odo = parseOdometerInput(formOdo);
     const cost = parseBRLInput(formCost);
-    const interval = parseInt(formKmInterval, 10) || getSettingsFor(registeringType, settings).kmInterval;
+    const interval = parseInt(formKmInterval, 10) || getSettingsFor(registeringType, settings, allTypes).kmInterval;
 
     if (!odo || odo <= 0) { playErrorBeep(); return; }
 
-    const typeName = MAINTENANCE_TYPES.find(t => t.id === registeringType)?.name ?? 'Manutenção';
+    const typeName = allTypes.find(t => t.id === registeringType)?.name ?? 'Manutenção';
 
     // Adicionar despesa no caixa ativo
     if (onAddTransaction && cost > 0) {
@@ -275,12 +298,22 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
           <h2 className="text-sm font-bold text-white">Oficina</h2>
           <p className="text-xs text-slate-400">Manutenção preventiva da moto</p>
         </div>
-        {odo !== null && (
-          <div className="ml-auto flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-1.5 rounded-lg border border-slate-700/50">
-            <Gauge className="w-3 h-3 text-slate-400" />
-            <span className="text-xs font-mono text-slate-300">{formatOdometer(odo)} km</span>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {odo !== null && (
+            <div className="flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-1.5 rounded-lg border border-slate-700/50">
+              <Gauge className="w-3 h-3 text-slate-400" />
+              <span className="text-xs font-mono text-slate-300">{formatOdometer(odo)} km</span>
+            </div>
+          )}
+          <button
+            onClick={() => { playBeep(); setShowAddType(true); setNewTypeName(''); setNewTypeEmoji('🔩'); setNewTypeKm('5000'); setNewTypeAlert('500'); }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/15 border border-orange-500/30 text-orange-400 hover:bg-orange-500/25 text-xs font-bold transition-colors"
+            title="Adicionar nova categoria de manutenção"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nova Categoria
+          </button>
+        </div>
       </div>
 
       {/* Alerta de caixa fechado */}
@@ -292,8 +325,9 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
       )}
 
       {/* Cards por tipo de manutenção */}
-      {MAINTENANCE_TYPES.map(type => {
-        const cfg = getSettingsFor(type.id, settings);
+      {allTypes.map(type => {
+        const cfg = getSettingsFor(type.id, settings, allTypes);
+        const isCustom = !MAINTENANCE_TYPES.some(t => t.id === type.id);
         const last = lastRecordFor(type.id);
         const remaining = kmUntilNext(type.id);
         const status = statusFor(type.id);
@@ -341,6 +375,18 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isCustom && (
+                    <button
+                      onClick={() => {
+                        playBeep();
+                        setCustomTypes(prev => prev.filter(t => t.id !== type.id));
+                      }}
+                      className="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700/50 flex items-center justify-center text-slate-500 hover:text-rose-400 hover:border-rose-500/40 transition-colors"
+                      title="Remover categoria"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       playBeep();
@@ -527,11 +573,109 @@ export function OficinaApp({ activeShift, shifts = [], onAddTransaction }: Ofici
         );
       })}
 
+      {/* Modal: Nova Categoria */}
+      <AnimatePresence>
+        {showAddType && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={e => { if (e.target === e.currentTarget) { playBeep(); setShowAddType(false); } }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+              className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700/70 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                <p className="text-sm font-bold text-white">Nova Categoria de Manutenção</p>
+                <button onClick={() => { playBeep(); setShowAddType(false); }} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-[56px_1fr] gap-2">
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block font-semibold">Emoji</label>
+                    <input
+                      type="text"
+                      value={newTypeEmoji}
+                      onChange={e => setNewTypeEmoji(e.target.value)}
+                      maxLength={2}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-2.5 text-lg text-center focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block font-semibold">Nome *</label>
+                    <input
+                      type="text"
+                      value={newTypeName}
+                      onChange={e => setNewTypeName(e.target.value)}
+                      placeholder="ex: Filtro de Ar"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block font-semibold">Intervalo (km) *</label>
+                    <input
+                      type="number"
+                      value={newTypeKm}
+                      onChange={e => setNewTypeKm(e.target.value)}
+                      placeholder="5000"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block font-semibold">Alertar X km antes</label>
+                    <input
+                      type="number"
+                      value={newTypeAlert}
+                      onChange={e => setNewTypeAlert(e.target.value)}
+                      placeholder="500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => { playBeep(); setShowAddType(false); }}
+                    className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-sm font-semibold border border-slate-700"
+                  >Cancelar</button>
+                  <button
+                    onClick={() => {
+                      if (!newTypeName.trim()) { playErrorBeep(); return; }
+                      const interval = parseInt(newTypeKm, 10) || 5000;
+                      const alert = parseInt(newTypeAlert, 10) || 500;
+                      const newType: MaintenanceTypeConfig = {
+                        id: `custom_${Date.now()}`,
+                        name: newTypeName.trim(),
+                        emoji: newTypeEmoji || '🔩',
+                        defaultKmInterval: interval,
+                        defaultAlertKm: alert,
+                      };
+                      setCustomTypes(prev => [...prev, newType]);
+                      playBeep();
+                      setShowAddType(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 text-sm font-black transition-colors"
+                  >✓ Criar</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Modal de registro */}
       <AnimatePresence>
         {registeringType && (() => {
-          const type = MAINTENANCE_TYPES.find(t => t.id === registeringType)!;
-          const cfg = getSettingsFor(registeringType, settings);
+          const type = allTypes.find(t => t.id === registeringType)!;
+          const cfg = getSettingsFor(registeringType, settings, allTypes);
           return (
             <motion.div
               initial={{ opacity: 0 }}

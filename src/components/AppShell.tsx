@@ -3,9 +3,11 @@
  * Layout principal do app — consome useAppState e renderiza toda a interface.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { playBeep, warmUpAudio } from '../utils/audio';
+import { GoalProgressWidget } from './GoalProgressWidget';
+import { BackupManager } from './BackupManager';
 
 import { AppNavbar } from './AppNavbar';
 import { SystemTabsNav } from './SystemTabsNav';
@@ -103,6 +105,25 @@ export function AppShell() {
     isLoadingFromServer,
   } = useAppState();
 
+  // Ref para não alertar duas vezes pelo mesmo turno
+  const goalAlertedShiftRef = useRef<string | null>(null);
+
+  // Alerta quando a meta diária é atingida
+  useEffect(() => {
+    if (!activeShift || monthlyGoalMath.progressPct < 100) return;
+    if (goalAlertedShiftRef.current === activeShift.id) return;
+    goalAlertedShiftRef.current = activeShift.id;
+    playBeep();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('🎯 Meta do dia atingida!', {
+        body: `Parabéns! Você bateu sua meta diária de R$ ${monthlyGoalMath.dailyGoal.toFixed(2).replace('.', ',')}.`,
+        icon: '/favicon.ico',
+      });
+    } else if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [monthlyGoalMath.progressPct, activeShift]);
+
   // Pré-aquece AudioContext e renderiza buffers no primeiro gesto do usuário
   useEffect(() => {
     const handler = () => {
@@ -166,12 +187,15 @@ export function AppShell() {
           </motion.div>
 
         ) : systemTab === 'historico' ? (
-          <HistoricoCaixasView
-            shifts={shifts}
-            driverName={driverName}
-            onSelectShiftForReport={setSelectedShiftForReport}
-            onDeleteHistoryShift={handleDeleteHistoryShift}
-          />
+          <div className="space-y-3">
+            <HistoricoCaixasView
+              shifts={shifts}
+              driverName={driverName}
+              onSelectShiftForReport={setSelectedShiftForReport}
+              onDeleteHistoryShift={handleDeleteHistoryShift}
+            />
+            <BackupManager />
+          </div>
 
         ) : systemTab === 'metas' ? (
           <motion.div key="metas-system" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.2 }}>
@@ -191,6 +215,12 @@ export function AppShell() {
         ) : (
           /* ── Aba Caixa (padrão) ─────────────────────────────────────── */
           <>
+            <GoalProgressWidget
+              shifts={shifts}
+              monthlyGoal={monthlyGoalMath.monthlyGoal}
+              faturamentoPosDespesas={faturamentoPosDespesas}
+              excludeSundays={excludeSundays}
+            />
             <FinancialScoreCards
               financialTotals={financialTotals}
               monthlyGoalMath={monthlyGoalMath}
