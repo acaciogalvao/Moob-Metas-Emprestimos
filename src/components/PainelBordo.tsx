@@ -429,15 +429,21 @@ export function PainelBordo({
             {/* ── Linha de destaque: os 3 indicadores principais do turno ── */}
             <div className="grid grid-cols-3 gap-2">
 
-              {/* KM do turno — GPS exclusivo */}
+              {/* KM do turno — GPS + corridas (melhor estimativa) */}
               <div className="bg-emerald-950/50 border border-emerald-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
                 <span className="text-[9px] text-emerald-400/70 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
                 <span className="font-mono font-black text-base text-emerald-300 leading-tight">
-                  {gpsShiftKm >= 0.1
-                    ? `${gpsShiftKm.toFixed(1).replace('.', ',')} km`
+                  {combinedKm >= 0.1
+                    ? `${combinedKm.toFixed(1).replace('.', ',')} km`
                     : '0,0 km'}
                 </span>
-                <span className="text-[9px] text-emerald-500/60 font-mono leading-none">GPS</span>
+                <span className="text-[9px] text-emerald-500/60 font-mono leading-none">
+                  {gpsShiftKm >= 0.1 && totalKmRun >= 0.1
+                    ? 'GPS + corridas'
+                    : gpsShiftKm >= 0.1
+                    ? 'GPS'
+                    : 'corridas'}
+                </span>
               </div>
 
               {/* Velocidade média */}
