@@ -9,10 +9,19 @@
 /* ─── Base ─────────────────────────────────────────────────────── */
 
 /* Prevent double-tap zoom delay, blue highlight on tap, and horizontal scroll */
-html, body {
+html {
+  /* overflow-x: hidden MUST NOT be set here — on html it propagates to the
+     viewport and kills vertical scrolling in Safari/iOS and many mobile browsers.
+     Set it only on body (below). */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  overflow-x: hidden;
+  background-color: #07090f;
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden; /* safe on body — does NOT affect the viewport scroll axis */
   background-color: #07090f; /* Near-true-black for OLED screens */
   font-family: "Plus Jakarta Sans", "Inter", sans-serif;
 }
