@@ -1,17 +1,16 @@
 /**
  * GoalProgressWidget.tsx — Barra de progresso da meta mensal no topo do Caixa.
- * Acumula todos os turnos fechados do mês atual + turno aberto atual.
  */
 
-import React, { useMemo, useRef } from 'react';
-import { Target } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Target, TrendingUp } from 'lucide-react';
 import { Shift } from '../types';
 import { formatBRL } from '../utils/format';
 
 interface GoalProgressWidgetProps {
   shifts: Shift[];
   monthlyGoal: number;
-  faturamentoPosDespesas: number;  // net do turno aberto atual
+  faturamentoPosDespesas: number;
   excludeSundays: boolean;
 }
 
@@ -71,51 +70,95 @@ export function GoalProgressWidget({
   const adaptiveDailyGoal = remainingDays > 0 ? remaining / remainingDays : 0;
   const achieved = progressPct >= 100;
 
-  const barColor = achieved
-    ? 'bg-emerald-500'
+  const barGradient = achieved
+    ? 'linear-gradient(90deg, #10b981, #34d399)'
     : progressPct >= 75
-    ? 'bg-amber-500'
+    ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
     : progressPct >= 40
-    ? 'bg-sky-500'
-    : 'bg-slate-500';
+    ? 'linear-gradient(90deg, #0ea5e9, #38bdf8)'
+    : 'linear-gradient(90deg, #475569, #64748b)';
+
+  const glowColor = achieved
+    ? 'rgba(52,211,153,0.25)'
+    : progressPct >= 75
+    ? 'rgba(251,191,36,0.25)'
+    : 'rgba(14,165,233,0.15)';
 
   return (
-    <div className={`bg-slate-900 border rounded-xl p-3.5 space-y-2.5 transition-colors ${achieved ? 'border-emerald-500/40' : 'border-slate-800'}`}>
+    <div
+      className={`rounded-2xl p-4 space-y-3 transition-all duration-500 border ${
+        achieved ? 'border-emerald-500/30' : 'border-slate-800/80'
+      }`}
+      style={{
+        background: 'linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.75) 100%)',
+        boxShadow: achieved ? `0 0 32px ${glowColor}` : 'none',
+      }}
+    >
+      {/* Header row */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${achieved ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
-            <Target className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center`}
+            style={{
+              background: achieved
+                ? 'linear-gradient(135deg, rgba(52,211,153,0.2), rgba(16,185,129,0.1))'
+                : 'rgba(30,41,59,0.8)',
+              border: achieved ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(51,65,85,0.5)',
+            }}
+          >
+            {achieved
+              ? <TrendingUp className="w-4 h-4 text-emerald-400" />
+              : <Target className="w-4 h-4 text-slate-400" />
+            }
           </div>
           <div className="min-w-0">
-            <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider leading-none">Meta Mensal</p>
-            <p className="text-base font-black text-white font-mono leading-tight truncate">
-              {formatBRL(monthlyAccumulated)}
-              <span className="text-[11px] font-normal text-slate-500 ml-1">/ {formatBRL(monthlyGoal)}</span>
-            </p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Meta Mensal</p>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-base font-black text-white font-mono leading-tight truncate">
+                {formatBRL(monthlyAccumulated)}
+              </span>
+              <span className="text-[11px] font-normal text-slate-600">/ {formatBRL(monthlyGoal)}</span>
+            </div>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className={`text-sm font-black font-mono ${achieved ? 'text-emerald-400' : 'text-white'}`}>{progressPct.toFixed(0)}%</p>
-          <p className="text-[10.5px] text-slate-500">{remainingDays} dia{remainingDays !== 1 ? 's' : ''} restante{remainingDays !== 1 ? 's' : ''}</p>
+          <p
+            className={`text-lg font-black font-mono leading-none ${achieved ? 'text-emerald-400 num-glow-emerald' : 'text-white'}`}
+          >
+            {progressPct.toFixed(0)}%
+          </p>
+          <p className="text-[10px] text-slate-600 mt-0.5">
+            {remainingDays} dia{remainingDays !== 1 ? 's' : ''}
+          </p>
         </div>
       </div>
 
-      {/* Barra de progresso */}
-      <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+      {/* Progress bar */}
+      <div className="w-full h-2 bg-slate-800/80 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-          style={{ width: `${progressPct}%` }}
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${progressPct}%`,
+            background: barGradient,
+            boxShadow: `0 0 8px ${glowColor}`,
+          }}
         />
       </div>
 
-      {/* Linha inferior */}
-      <div className="flex justify-between items-center text-[11px] font-mono text-slate-500">
+      {/* Footer row */}
+      <div className="flex justify-between items-center text-[11px] font-mono">
         {achieved ? (
-          <span className="text-emerald-400 font-bold text-xs">✅ Meta do mês atingida!</span>
+          <span className="text-emerald-400 font-bold text-xs flex items-center gap-1">
+            <span>✅</span> Meta do mês atingida!
+          </span>
         ) : (
           <>
-            <span>Falta: <strong className="text-amber-400">{formatBRL(remaining)}</strong></span>
-            <span>Meta/dia: <strong className="text-slate-300">{formatBRL(adaptiveDailyGoal)}</strong></span>
+            <span className="text-slate-500">
+              Falta: <strong className="text-amber-400 num-glow-amber">{formatBRL(remaining)}</strong>
+            </span>
+            <span className="text-slate-500">
+              Meta/dia: <strong className="text-slate-300">{formatBRL(adaptiveDailyGoal)}</strong>
+            </span>
           </>
         )}
       </div>

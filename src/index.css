@@ -124,3 +124,61 @@ input, select, textarea {
 .font-mono-lcd {
   font-family: var(--font-mono);
 }
+
+/* ─── Card accent glows ─────────────────────────────────────────── */
+
+.glow-emerald { box-shadow: 0 0 0 1px rgba(52,211,153,0.08), 0 4px 24px rgba(52,211,153,0.06); }
+.glow-amber   { box-shadow: 0 0 0 1px rgba(251,191,36,0.10), 0 4px 24px rgba(251,191,36,0.07); }
+.glow-rose    { box-shadow: 0 0 0 1px rgba(251,113,133,0.08), 0 4px 24px rgba(251,113,133,0.06); }
+.glow-cyan    { box-shadow: 0 0 0 1px rgba(34,211,238,0.08), 0 4px 24px rgba(34,211,238,0.06); }
+.glow-violet  { box-shadow: 0 0 0 1px rgba(167,139,250,0.08), 0 4px 24px rgba(167,139,250,0.06); }
+.glow-indigo  { box-shadow: 0 0 0 1px rgba(129,140,248,0.08), 0 4px 24px rgba(129,140,248,0.06); }
+.glow-teal    { box-shadow: 0 0 0 1px rgba(45,212,191,0.08), 0 4px 24px rgba(45,212,191,0.06); }
+
+/* ─── Number glow (for important values) ────────────────────────── */
+
+.num-glow-amber  { text-shadow: 0 0 20px rgba(251,191,36,0.40); }
+.num-glow-emerald{ text-shadow: 0 0 20px rgba(52,211,153,0.40); }
+.num-glow-rose   { text-shadow: 0 0 20px rgba(251,113,133,0.35); }
+.num-glow-cyan   { text-shadow: 0 0 20px rgba(34,211,238,0.35); }
+.num-glow-violet { text-shadow: 0 0 20px rgba(167,139,250,0.35); }
+.num-glow-white  { text-shadow: 0 0 20px rgba(255,255,255,0.20); }
+
+/* ─── Gradient progress bars ────────────────────────────────────── */
+
+.progress-amber  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.progress-emerald{ background: linear-gradient(90deg, #10b981, #34d399); }
+.progress-sky    { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+.progress-slate  { background: linear-gradient(90deg, #475569, #64748b); }
+.progress-rose   { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+.progress-indigo { background: linear-gradient(90deg, #6366f1, #818cf8); }
+
+/* ─── Card gradient backgrounds ─────────────────────────────────── */
+
+.card-base {
+  background: linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.80) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ─── Gradient brand text ───────────────────────────────────────── */
+
+.brand-text {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Shimmer skeleton ──────────────────────────────────────────── */
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
