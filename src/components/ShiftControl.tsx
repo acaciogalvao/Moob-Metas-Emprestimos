@@ -1078,7 +1078,15 @@ export function ShiftControl({
               setIsClosingOpen(true);
               setRealCashInput(expectedPocketCash.toFixed(2).replace('.', ','));
               setRealPixInput(expectedPixBalance.toFixed(2).replace('.', ','));
-              
+
+              // Sincroniza capacidade do tanque com localStorage (pode diferir do state se
+              // outro componente gravou um novo valor após a montagem do ShiftControl)
+              const freshMotoCapacity = parseFloat(localStorage.getItem('moob_fuel_moto_capacity') || '12');
+              const freshCarCapacity  = parseFloat(localStorage.getItem('moob_fuel_car_capacity')  || '50');
+              if (freshMotoCapacity !== motoCapacity) setMotoCapacity(freshMotoCapacity);
+              if (freshCarCapacity  !== carCapacity)  setCarCapacity(freshCarCapacity);
+              const freshCapacity = fuelVehicleType === 'CARRO' ? freshCarCapacity : freshMotoCapacity;
+
               // Pre-populate fuel liters if they registered fuel expenses during the shift
               const fuelTxLiters = activeShift?.transactions
                 ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
@@ -1098,7 +1106,7 @@ export function ShiftControl({
               if (activeShift.initialFuelLiters !== undefined && displayKmRun > 0 && activeConsumption > 0) {
                 const estimatedConsumed = displayKmRun / activeConsumption;
                 const estimatedRemaining = Math.min(
-                  activeCapacity,
+                  freshCapacity,
                   Math.max(0, activeShift.initialFuelLiters + fuelTxLiters - estimatedConsumed)
                 );
                 setFinalFuelLitersInput(estimatedRemaining.toFixed(1).replace('.', ','));
