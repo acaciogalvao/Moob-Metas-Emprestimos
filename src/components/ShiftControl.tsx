@@ -269,7 +269,9 @@ export function ShiftControl({
       } else if (initialLevelLabel === 'Digitado' || activeShift.initialFuelLiters !== undefined) {
         setFinalFuelLevel('CUSTOM');
         if (activeShift.initialFuelLiters !== undefined) {
-          setFinalFuelLitersInput(activeShift.initialFuelLiters.toFixed(1).replace('.', ','));
+          const activeCap = fuelVehicleType === 'CARRO' ? carCapacity : motoCapacity;
+          const clamped = Math.min(activeCap, activeShift.initialFuelLiters);
+          setFinalFuelLitersInput(clamped.toFixed(1).replace('.', ','));
         }
       }
     }
@@ -1095,7 +1097,10 @@ export function ShiftControl({
               // Auto-posiciona o ponteiro do gauge: restante = inicial + abastecido − (km ÷ consumo)
               if (activeShift.initialFuelLiters !== undefined && displayKmRun > 0 && activeConsumption > 0) {
                 const estimatedConsumed = displayKmRun / activeConsumption;
-                const estimatedRemaining = Math.max(0, activeShift.initialFuelLiters + fuelTxLiters - estimatedConsumed);
+                const estimatedRemaining = Math.min(
+                  activeCapacity,
+                  Math.max(0, activeShift.initialFuelLiters + fuelTxLiters - estimatedConsumed)
+                );
                 setFinalFuelLitersInput(estimatedRemaining.toFixed(1).replace('.', ','));
                 setFinalFuelLevel('CUSTOM');
               }
@@ -3302,6 +3307,8 @@ export function ShiftControl({
                                 // Campo = litros consumidos → final = inicial − consumido
                                 remaining = Math.max(0, activeShift.initialFuelLiters - parsedLts);
                               }
+                              // Clamp ao limite do tanque configurado
+                              remaining = Math.min(activeCapacity, remaining);
                               setFinalFuelLitersInput(remaining.toFixed(1).replace('.', ','));
                               setFinalFuelLevel('CUSTOM');
                             }
