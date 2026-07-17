@@ -10,7 +10,9 @@ interface PainelBordoProps {
   fuelLitersRemaining: number;   // litros restantes estimados
   fuelCapacity: number;           // capacidade do tanque
   autonomyKmPerL: number;         // km/L configurado
-  totalKmRun: number;             // km rodados (odômetro via transações)
+  totalKmRun: number;             // km rodados (odômetro via transações) + extraKm
+  platformKmRun: number;          // km apenas nas plataformas (sem extraKm)
+  extraKm: number;                // km rodados fora das plataformas (manual)
   remainingKm: number;            // km que ainda dá pra rodar com o combustível
   vehicleType: 'CARRO' | 'MOTO';
   onToggleVehicle?: () => void;   // alterna entre Carro e Moto
@@ -58,6 +60,8 @@ export function PainelBordo({
   fuelCapacity,
   autonomyKmPerL,
   totalKmRun,
+  platformKmRun,
+  extraKm,
   remainingKm,
   vehicleType,
   onToggleVehicle,
@@ -429,7 +433,7 @@ export function PainelBordo({
             {/* ── Linha de destaque: os 3 indicadores principais do turno ── */}
             <div className="grid grid-cols-3 gap-2">
 
-              {/* KM do turno — GPS + corridas (melhor estimativa) */}
+              {/* KM do turno — GPS + corridas + km extra (melhor estimativa) */}
               <div className="bg-emerald-950/50 border border-emerald-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
                 <span className="text-[9px] text-emerald-400/70 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
                 <span className="font-mono font-black text-base text-emerald-300 leading-tight">
@@ -438,7 +442,9 @@ export function PainelBordo({
                     : '0,0 km'}
                 </span>
                 <span className="text-[9px] text-emerald-500/60 font-mono leading-none">
-                  {gpsShiftKm >= 0.1 && totalKmRun >= 0.1
+                  {extraKm > 0
+                    ? `plat.${platformKmRun >= 0.1 ? ` ${platformKmRun.toFixed(1).replace('.', ',')}` : ' 0,0'} + fora ${extraKm.toFixed(1).replace('.', ',')}`
+                    : gpsShiftKm >= 0.1 && totalKmRun >= 0.1
                     ? 'GPS + corridas'
                     : gpsShiftKm >= 0.1
                     ? 'GPS'
