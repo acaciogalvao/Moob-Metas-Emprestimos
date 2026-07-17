@@ -1087,20 +1087,11 @@ export function ShiftControl({
               if (freshCarCapacity  !== carCapacity)  setCarCapacity(freshCarCapacity);
               const freshCapacity = fuelVehicleType === 'CARRO' ? freshCarCapacity : freshMotoCapacity;
 
-              // Pre-populate fuel liters if they registered fuel expenses during the shift
+              // Litros: 0 se não houve abastecimento no turno, total real se houve.
               const fuelTxLiters = activeShift?.transactions
                 ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
                 ?.reduce((acc, t) => acc + (t.liters || 0), 0) || 0;
-              if (fuelTxLiters > 0) {
-                // Abastecimentos registrados: usa o total real de litros abastecidos
-                setTotalLitersInput(fuelTxLiters.toFixed(2).replace('.', ','));
-              } else if (activeShift.initialFuelLiters === undefined && displayKmRun > 0 && activeConsumption > 0) {
-                // Sem nível inicial e sem abastecimentos: estima consumo total via km ÷ consumo
-                setTotalLitersInput((displayKmRun / activeConsumption).toFixed(2).replace('.', ','));
-              } else {
-                // Há nível inicial: consumo derivado da diferença initial - final (via gauge)
-                setTotalLitersInput('');
-              }
+              setTotalLitersInput(fuelTxLiters.toFixed(2).replace('.', ','));
 
               // Auto-posiciona o ponteiro do gauge: restante = inicial + abastecido − (km ÷ consumo)
               if (activeShift.initialFuelLiters !== undefined && displayKmRun > 0 && activeConsumption > 0) {
