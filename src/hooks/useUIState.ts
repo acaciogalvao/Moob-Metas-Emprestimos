@@ -21,8 +21,6 @@ export function useUIState() {
     (localStorage.getItem('moob_system_tab') as SystemTab) || 'caixa'
   );
 
-  const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
-
   const [excludeSundays, setExcludeSundays] = useState<boolean>(
     () => localStorage.getItem('moob_caixa_exclude_sundays') === 'true'
   );
@@ -47,7 +45,6 @@ export function useUIState() {
     periodFilter,           setPeriodFilter,
     activeTab,              setActiveTab,
     systemTab,              setSystemTab,
-    showWelcomeMsg,         setShowWelcomeMsg,
     excludeSundays,         handleToggleExcludeSundays,
     draftFuelLiters,        setDraftFuelLiters,
     liveFuelLevel,          setLiveFuelLevel,

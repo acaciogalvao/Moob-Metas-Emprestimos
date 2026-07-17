@@ -9,7 +9,6 @@ import { playBeep, warmUpAudio } from '../utils/audio';
 
 import { AppNavbar } from './AppNavbar';
 import { SystemTabsNav } from './SystemTabsNav';
-import { CaixaDashboardHeader } from './CaixaDashboardHeader';
 import { FinancialScoreCards } from './FinancialScoreCards';
 import { QuickRegister } from './QuickRegister';
 import { ShiftControl } from './ShiftControl';
@@ -41,8 +40,6 @@ export function AppShell() {
     setActiveTab,
     systemTab,
     setSystemTab,
-    showWelcomeMsg,
-    setShowWelcomeMsg,
     excludeSundays,
     draftFuelLiters,
     setDraftFuelLiters,
@@ -194,12 +191,6 @@ export function AppShell() {
         ) : (
           /* ── Aba Caixa (padrão) ─────────────────────────────────────── */
           <>
-            <CaixaDashboardHeader
-              showWelcomeMsg={showWelcomeMsg}
-              onShowWelcomeMsg={setShowWelcomeMsg}
-              onFactoryReset={handleFactoryReset}
-            />
-
             <FinancialScoreCards
               financialTotals={financialTotals}
               monthlyGoalMath={monthlyGoalMath}
