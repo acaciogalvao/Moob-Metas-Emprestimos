@@ -86,70 +86,69 @@ export function GoalProgressWidget({
 
   return (
     <div
-      className={`rounded-2xl p-4 space-y-3 transition-all duration-500 border ${
-        achieved ? 'border-emerald-500/30' : 'border-slate-800/80'
-      }`}
+      className={`rounded-3xl p-5 space-y-3.5 transition-all duration-500`}
       style={{
-        background: 'linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.75) 100%)',
-        boxShadow: achieved ? `0 0 32px ${glowColor}` : 'none',
+        background: 'linear-gradient(145deg, #0f172a 0%, #0d1526 100%)',
+        border: `1px solid ${achieved ? 'rgba(52,211,153,0.25)' : 'rgba(51,65,85,0.40)'}`,
+        boxShadow: achieved
+          ? `0 0 0 1px rgba(52,211,153,0.10), 0 8px 32px rgba(52,211,153,0.12), 0 2px 8px rgba(0,0,0,0.40)`
+          : '0 2px 16px rgba(0,0,0,0.35)',
       }}
     >
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <div
-            className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center`}
+            className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center"
             style={{
               background: achieved
-                ? 'linear-gradient(135deg, rgba(52,211,153,0.2), rgba(16,185,129,0.1))'
-                : 'rgba(30,41,59,0.8)',
-              border: achieved ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(51,65,85,0.5)',
+                ? 'linear-gradient(135deg, rgba(52,211,153,0.25), rgba(16,185,129,0.12))'
+                : 'rgba(15,23,42,1)',
+              border: achieved ? '1px solid rgba(52,211,153,0.30)' : '1px solid rgba(51,65,85,0.60)',
             }}
           >
             {achieved
-              ? <TrendingUp className="w-4 h-4 text-emerald-400" />
-              : <Target className="w-4 h-4 text-slate-400" />
+              ? <TrendingUp className="w-5 h-5 text-emerald-400" />
+              : <Target className="w-5 h-5 text-slate-500" />
             }
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Meta Mensal</p>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-base font-black text-white font-mono leading-tight truncate">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Meta Mensal</p>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-xl font-black text-white font-mono leading-tight truncate">
                 {formatBRL(monthlyAccumulated)}
               </span>
-              <span className="text-[11px] font-normal text-slate-600">/ {formatBRL(monthlyGoal)}</span>
+              <span className="text-xs font-normal text-slate-600">/ {formatBRL(monthlyGoal)}</span>
             </div>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p
-            className={`text-lg font-black font-mono leading-none ${achieved ? 'text-emerald-400 num-glow-emerald' : 'text-white'}`}
-          >
+          <p className={`text-2xl font-black font-mono leading-none ${achieved ? 'text-emerald-400 num-glow-emerald' : 'text-white'}`}>
             {progressPct.toFixed(0)}%
           </p>
           <p className="text-[10px] text-slate-600 mt-0.5">
-            {remainingDays} dia{remainingDays !== 1 ? 's' : ''}
+            {remainingDays} dia{remainingDays !== 1 ? 's' : ''} restante{remainingDays !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-2 bg-slate-800/80 rounded-full overflow-hidden">
+      <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(15,23,42,1)' }}>
         <div
           className="h-full rounded-full transition-all duration-700"
           style={{
             width: `${progressPct}%`,
             background: barGradient,
-            boxShadow: `0 0 8px ${glowColor}`,
+            boxShadow: `0 0 10px ${glowColor}`,
           }}
         />
       </div>
 
       {/* Footer row */}
-      <div className="flex justify-between items-center text-[11px] font-mono">
+      <div className="flex justify-between items-center text-xs font-mono">
         {achieved ? (
-          <span className="text-emerald-400 font-bold text-xs flex items-center gap-1">
-            <span>✅</span> Meta do mês atingida!
+          <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+            ✅ Meta do mês atingida!
           </span>
         ) : (
           <>

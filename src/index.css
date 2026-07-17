@@ -13,8 +13,13 @@ html, body {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
-  background-color: #121214; /* Deep charcoal background matching native dark apps */
+  background-color: #07090f; /* Near-true-black for OLED screens */
   font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+}
+
+/* Native-app feel: no rubber-band overscroll background bleed */
+body {
+  overscroll-behavior: none;
 }
 
 /* ─── Safe Area (notch / home indicator) ───────────────────────── */

@@ -140,7 +140,7 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 select-none relative overflow-x-hidden w-full flex flex-col shadow-2xl sm:max-w-[480px] sm:mx-auto md:border-x md:border-slate-800/60 md:shadow-amber-500/5">
+    <div className="min-h-screen text-slate-100 pb-24 select-none relative overflow-x-hidden w-full flex flex-col sm:max-w-[480px] sm:mx-auto" style={{ background: '#07090f' }}>
 
       {/* Banner de carregamento do banco — aparece apenas no boot inicial */}
       <AnimatePresence>
@@ -175,7 +175,7 @@ export function AppShell() {
         currentTime={currentTime}
       />
 
-      <main className="w-full px-3 mt-3.5 space-y-3.5 flex-1 flex flex-col">
+      <main className="w-full px-4 mt-4 space-y-4 flex-1 flex flex-col">
 
         {/* Navegação de abas do sistema */}
         <SystemTabsNav systemTab={systemTab} onSetSystemTab={setSystemTab} />

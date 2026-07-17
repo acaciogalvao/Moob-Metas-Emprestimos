@@ -36,10 +36,16 @@ export function AppNavbar({
   currentTime,
 }: AppHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/60 backdrop-blur-xl"
-      style={{ background: 'linear-gradient(180deg, rgba(10,12,20,0.98) 0%, rgba(15,23,42,0.95) 100%)' }}
+    <header
+      className="sticky top-0 z-40 safe-top"
+      style={{
+        background: 'rgba(7,9,15,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}
     >
-      <div className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5">
+      <div className="w-full flex items-center justify-between gap-2 px-4 py-3">
 
         {/* Brand + driver name */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -50,7 +56,7 @@ export function AppNavbar({
             <Zap className="w-4 h-4 text-slate-950 stroke-[2.5]" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-[11px] font-black tracking-widest uppercase leading-none brand-text">
+            <h1 className="text-[12px] font-black tracking-widest uppercase leading-none brand-text">
               MoobFinance
             </h1>
             <div className="flex items-center gap-1 mt-0.5">

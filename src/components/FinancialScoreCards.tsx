@@ -26,11 +26,12 @@ interface CardProps {
 function ScoreCard({ accent, glowClass = '', children }: CardProps) {
   return (
     <div
-      className={`rounded-2xl p-3.5 flex flex-col justify-between transition-all duration-200 ${glowClass}`}
+      className={`rounded-3xl p-4 flex flex-col justify-between transition-all duration-200 ${glowClass}`}
       style={{
-        background: 'linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.80) 100%)',
-        border: '1px solid rgba(51,65,85,0.50)',
-        borderLeft: `2px solid ${accent}`,
+        background: 'linear-gradient(155deg, #0f172a 0%, #0a1020 100%)',
+        border: '1px solid rgba(51,65,85,0.35)',
+        borderLeft: `3px solid ${accent}`,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.30)',
       }}
     >
       {children}
@@ -48,19 +49,19 @@ function CardLabel({ children, color }: { children: React.ReactNode; color: stri
 
 function CardValue({ children, color, glowClass = '' }: { children: React.ReactNode; color: string; glowClass?: string }) {
   return (
-    <div className={`mt-1.5 text-[18px] font-black font-mono tracking-tight leading-none ${glowClass}`} style={{ color }}>
+    <div className={`mt-2 text-[20px] font-black font-mono tracking-tight leading-none ${glowClass}`} style={{ color }}>
       {children}
     </div>
   );
 }
 
 function Divider() {
-  return <div className="border-t border-slate-800/60 my-2" />;
+  return <div className="my-2.5" style={{ borderTop: '1px solid rgba(51,65,85,0.40)' }} />;
 }
 
 function Row({ label, value, valueColor = '#94a3b8' }: { label: React.ReactNode; value: React.ReactNode; valueColor?: string }) {
   return (
-    <div className="flex justify-between items-center text-[11px] font-mono">
+    <div className="flex justify-between items-center text-[11.5px] font-mono">
       <span className="text-slate-500">{label}</span>
       <span className="font-bold" style={{ color: valueColor }}>{value}</span>
     </div>
