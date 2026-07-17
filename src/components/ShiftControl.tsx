@@ -1082,7 +1082,12 @@ export function ShiftControl({
                 ?.filter(t => t.type === 'OUT' && t.liters && t.liters > 0)
                 ?.reduce((acc, t) => acc + (t.liters || 0), 0) || 0;
               if (fuelTxLiters > 0) {
+                // Abastecimentos registrados: usa o total real
                 setTotalLitersInput(fuelTxLiters.toFixed(2).replace('.', ','));
+              } else if (displayKmRun > 0 && activeConsumption > 0) {
+                // Sem abastecimentos: estima pelo km rodado ÷ consumo calibrado
+                const estimatedLiters = displayKmRun / activeConsumption;
+                setTotalLitersInput(estimatedLiters.toFixed(2).replace('.', ','));
               } else {
                 setTotalLitersInput('');
               }
