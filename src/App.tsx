@@ -4,6 +4,7 @@
  */
 
 import React, { lazy, Suspense, Component } from 'react';
+import { AppStateProvider } from './contexts/AppStateContext';
 
 // Lazy-load the main shell so the initial bundle stays small.
 // The splash/loader below is shown while the chunk downloads.
@@ -18,10 +19,18 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+// Nota: `useDefineForClassFields: false` no tsconfig impede TypeScript de
+// inferir membros herdados de Component em alguns cenários. As declarações
+// `declare` abaixo resolvem sem alterar o comportamento em runtime.
 class AppErrorBoundary extends Component<React.PropsWithChildren, ErrorBoundaryState> {
+  declare state: ErrorBoundaryState;
+  declare setState: Component<React.PropsWithChildren, ErrorBoundaryState>['setState'];
+  declare props: Readonly<React.PropsWithChildren>;
+
   constructor(props: React.PropsWithChildren) {
     super(props);
     this.state = { hasError: false, error: null };
+    this.handleReload = this.handleReload.bind(this);
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -32,10 +41,10 @@ class AppErrorBoundary extends Component<React.PropsWithChildren, ErrorBoundaryS
     console.error('[App] Erro não tratado:', error, info.componentStack);
   }
 
-  handleReload = () => {
+  handleReload() {
     this.setState({ hasError: false, error: null });
     window.location.reload();
-  };
+  }
 
   render() {
     if (this.state.hasError) {
@@ -116,9 +125,11 @@ function AppLoader() {
 export default function App() {
   return (
     <AppErrorBoundary>
-      <Suspense fallback={<AppLoader />}>
-        <AppShell />
-      </Suspense>
+      <AppStateProvider>
+        <Suspense fallback={<AppLoader />}>
+          <AppShell />
+        </Suspense>
+      </AppStateProvider>
     </AppErrorBoundary>
   );
 }

@@ -11,6 +11,7 @@ import { BackupManager } from './BackupManager';
 
 import { AppNavbar } from './AppNavbar';
 import { SystemTabsNav } from './SystemTabsNav';
+import { CaixaSubTabNav } from './CaixaSubTabNav';
 import { FinancialScoreCards } from './FinancialScoreCards';
 import { QuickRegister } from './QuickRegister';
 import { ShiftControl } from './ShiftControl';
@@ -25,7 +26,8 @@ import { ConfirmDialogModal } from './ConfirmDialogModal';
 import { DbConfigModal } from './DbConfigModal';
 import { SpeedometerWidget } from './SpeedometerWidget';
 
-import { useAppState } from '../hooks/useAppState';
+import { useAppStateContext } from '../contexts/AppStateContext';
+import { useHashRouter } from '../hooks/useHashRouter';
 
 export function AppShell() {
   const {
@@ -103,7 +105,10 @@ export function AppShell() {
     handleClearDbFields,
     handleToggleSpeedometer,
     isLoadingFromServer,
-  } = useAppState();
+  } = useAppStateContext();
+
+  // Sincroniza a aba ativa com o hash da URL (botão voltar / deep linking)
+  useHashRouter(systemTab, setSystemTab);
 
   // Ref para não alertar duas vezes pelo mesmo turno
   const goalAlertedShiftRef = useRef<string | null>(null);
@@ -233,28 +238,7 @@ export function AppShell() {
             />
 
             {/* Sub-abas: Caixa / Demonstrativos */}
-            <div className="flex mt-3 bg-slate-900 rounded-xl p-1 gap-1 border border-slate-800/80">
-              <button
-                onClick={() => { setActiveTab('REGISTER'); playBeep(); }}
-                className={`flex-1 py-2.5 px-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 rounded-lg active:scale-[0.97] ${
-                  activeTab === 'REGISTER'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                📟 Caixa
-              </button>
-              <button
-                onClick={() => { setActiveTab('ANALYTICS'); playBeep(); }}
-                className={`flex-1 py-2.5 px-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 rounded-lg active:scale-[0.97] ${
-                  activeTab === 'ANALYTICS'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                📊 Demonstrativos
-              </button>
-            </div>
+            <CaixaSubTabNav activeTab={activeTab} onSetActiveTab={setActiveTab} />
 
             <AnimatePresence mode="wait">
               {activeTab === 'REGISTER' ? (

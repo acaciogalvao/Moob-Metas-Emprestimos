@@ -5,6 +5,47 @@
  * parcelas, progresso percentual, valores restantes, dados para gráficos
  * e datas de vencimento de acordo com a periodicidade escolhida.
  */
+
+/**
+ * Taxa mensal utilizada na Tabela Price para empréstimos com multa aplicada.
+ * ~7,73% a.m. — fonte: regra de negócio definida pelo usuário.
+ * Exporte aqui para evitar que esse valor fique duplicado em outros módulos.
+ */
+export const LATE_FEE_MONTHLY_RATE = 0.0772782;
+
+/**
+ * Calcula o total (com juros) de um empréstimo ou meta a partir dos campos
+ * básicos do objeto. Use esta função sempre que precisar do total sem chamar
+ * o `calculateGoal` completo (que envolve cálculo de datas e parcelas).
+ */
+export function getLoanTotalWithInterest(g: {
+  category?: string;
+  totalValue?: number;
+  applyLateFees?: boolean;
+  months?: number;
+  durationUnit?: string;
+  interestRate?: number;
+}): number {
+  const base = g.totalValue || 0;
+  if (g.category !== 'loan') return base;
+
+  if (g.applyLateFees) {
+    const timeValue = Number(g.months) || 1;
+    let totalMonths = timeValue;
+    if (g.durationUnit === 'days') totalMonths = timeValue / 30.4166;
+    if (g.durationUnit === 'weeks') totalMonths = timeValue / 4.3333;
+    const n = totalMonths > 0 ? totalMonths : 1;
+    const pmt =
+      (base * (LATE_FEE_MONTHLY_RATE * Math.pow(1 + LATE_FEE_MONTHLY_RATE, n))) /
+      (Math.pow(1 + LATE_FEE_MONTHLY_RATE, n) - 1);
+    return pmt * n;
+  }
+
+  const rate = (g.interestRate || 0) / 100;
+  if (rate > 0) return base * (1 + rate);
+  return base;
+}
+
 import {
   CalculationResults,
   DurationUnit,
@@ -117,10 +158,9 @@ export const calculateGoal = (
   let total = baseTotal;
   if (isLoan) {
     if (params.applyLateFees) {
-       const rate = 0.0772782; 
        const n = totalMonths > 0 ? totalMonths : 1;
        // Tabela Price for monthly installments
-       const pmt = baseTotal * (rate * Math.pow(1 + rate, n)) / (Math.pow(1 + rate, n) - 1);
+       const pmt = baseTotal * (LATE_FEE_MONTHLY_RATE * Math.pow(1 + LATE_FEE_MONTHLY_RATE, n)) / (Math.pow(1 + LATE_FEE_MONTHLY_RATE, n) - 1);
        total = pmt * n;
     } else {
        const rate = Number(interestRate) / 100;

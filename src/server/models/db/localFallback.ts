@@ -118,8 +118,8 @@ export class MockDocument {
   }
 
   toObject() {
-    const copy = { ...this };
-    delete copy._onSave;
+    const copy = { ...this } as Record<string, unknown>;
+    delete copy['_onSave'];
     return copy;
   }
 

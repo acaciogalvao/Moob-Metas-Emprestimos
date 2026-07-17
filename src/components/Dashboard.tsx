@@ -3,35 +3,12 @@ import { TrendingUp, TrendingDown, DollarSign, AlertCircle, Calendar, CheckCircl
 import { Card, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { parseLocalDate } from "../loan-lib/utils";
-import { calculateGoal } from "../loan-lib/calculations";
+import { calculateGoal, getLoanTotalWithInterest } from "../loan-lib/calculations";
 
 interface DashboardProps {
   goalsList: any[];
   formatCurrency: (v: number) => string;
   onSelectGoal: (id: string, section: "metas" | "emprestimos") => void;
-}
-
-function getGoalTotal(g: any): number {
-  const isLoan = g.category === "loan";
-  if (!isLoan) return g.totalValue || 0;
-  
-  if (g.applyLateFees) {
-    const rate = 0.0772782; // ~7.73% ao mês fixo para a regra
-    let timeValue = Number(g.months) || 1;
-    let totalMonths = timeValue;
-    if (g.durationUnit === "days") totalMonths = timeValue / 30.4166;
-    if (g.durationUnit === "weeks") totalMonths = timeValue / 4.3333;
-    const n = totalMonths > 0 ? totalMonths : 1;
-    const pmt = (g.totalValue || 0) * (rate * Math.pow(1 + rate, n)) / (Math.pow(1 + rate, n) - 1);
-    return pmt * n;
-  }
-  
-  const rateNormal = (g.interestRate || 0) / 100;
-  if (rateNormal > 0) {
-    return (g.totalValue || 0) * (1 + rateNormal);
-  }
-  
-  return g.totalValue || 0;
 }
 
 export function Dashboard({ goalsList, formatCurrency, onSelectGoal }: DashboardProps) {
@@ -46,8 +23,7 @@ export function Dashboard({ goalsList, formatCurrency, onSelectGoal }: Dashboard
   };
 
   const loanStats = useMemo(() => {
-    const totalBruto = loans.reduce((s, g) => s + (g.totalValue || 0), 0);
-    const totalComJuros = loans.reduce((s, g) => s + getGoalTotal(g), 0);
+    const totalComJuros = loans.reduce((s, g) => s + getLoanTotalWithInterest(g), 0);
     const paid = loans.reduce((s, g) => s + getRealSaved(g), 0);
     const remaining = Math.max(0, totalComJuros - paid);
     return { count: loans.length, total: totalComJuros, paid, remaining };
