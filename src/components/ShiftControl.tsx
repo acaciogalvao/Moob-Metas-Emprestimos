@@ -2688,7 +2688,8 @@ export function ShiftControl({
                           const lastFuelTx = fTxs.length > 0
                             ? [...fTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
                             : undefined;
-                          const avgPrice = lastFuelTx?.pricePerLiter || 5.89;
+                          const storedFuelPrice1 = parseFloat(localStorage.getItem('moob_last_fuel_price') || '6.28');
+                          const avgPrice = lastFuelTx?.pricePerLiter || storedFuelPrice1;
                           const costPerKm = avgPrice / activeCons;
                           const rideFuelCost = (selectedTx.km || 0) * costPerKm;
 
@@ -2744,7 +2745,8 @@ export function ShiftControl({
                         const lastFuelTx = fTxs.length > 0
                           ? [...fTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
                           : undefined;
-                        const avgPrice = lastFuelTx?.pricePerLiter || 5.89;
+                        const storedFuelPrice2 = parseFloat(localStorage.getItem('moob_last_fuel_price') || '6.28');
+                        const avgPrice = lastFuelTx?.pricePerLiter || storedFuelPrice2;
                         return (
                           <span>💡 <strong>Métrica de Combustível Real:</strong> Calculada com base no consumo configurado para seu veículo (<strong>{typeof activeCons === 'number' ? activeCons.toFixed(2).replace('.', ',') : activeCons} km/L</strong>) e no preço do último abastecimento de <strong>R$ {formatDecimalBRL(avgPrice)}/L</strong>.</span>
                         );

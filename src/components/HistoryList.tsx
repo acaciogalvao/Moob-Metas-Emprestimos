@@ -43,7 +43,8 @@ export function HistoryList({
   const lastFuelTx = fuelTxs.length > 0
     ? [...fuelTxs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
     : undefined;
-  const averagePricePerLiter = lastFuelTx?.pricePerLiter || 5.89; // fallback standard price per liter
+  const storedFuelPrice = parseFloat(localStorage.getItem('moob_last_fuel_price') || '6.28');
+  const averagePricePerLiter = lastFuelTx?.pricePerLiter || storedFuelPrice;
 
   const periodOptions: { key: PeriodFilter; label: string }[] = [
     { key: 'HOJE', label: 'Hoje' },

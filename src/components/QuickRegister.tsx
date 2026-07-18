@@ -1002,6 +1002,11 @@ export function QuickRegister({
       odometer: fuelOdometerVal
     });
 
+    // Persiste o último preço por litro para uso como fallback em outros turnos
+    if (pricePerLiterVal && pricePerLiterVal > 0) {
+      localStorage.setItem('moob_last_fuel_price', String(pricePerLiterVal));
+    }
+
     // Success sound feed
     if (txType === 'IN') {
       playCashRegister();
