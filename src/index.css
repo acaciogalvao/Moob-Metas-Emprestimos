@@ -4,6 +4,37 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ── Paleta fogo do banner ── emerald→laranja, sky→vermelho, fundo quente */
+
+  --color-emerald-50:  #fff7ed;
+  --color-emerald-100: #ffedd5;
+  --color-emerald-200: #fed7aa;
+  --color-emerald-300: #fdba74;
+  --color-emerald-400: #fb923c;
+  --color-emerald-500: #f97316;
+  --color-emerald-600: #ea580c;
+  --color-emerald-700: #c2410c;
+  --color-emerald-800: #7c2d00;
+  --color-emerald-900: #431800;
+  --color-emerald-950: #2d0f00;
+
+  --color-sky-50:  #fff1f2;
+  --color-sky-100: #ffe4e6;
+  --color-sky-200: #fecdd3;
+  --color-sky-300: #fda4af;
+  --color-sky-400: #fb7185;
+  --color-sky-500: #f43f5e;
+  --color-sky-600: #e11d48;
+  --color-sky-700: #be123c;
+  --color-sky-800: #9f1239;
+  --color-sky-900: #881337;
+  --color-sky-950: #4c0519;
+
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
 }
 
 /* ─── Base ─────────────────────────────────────────────────────── */
@@ -15,14 +46,14 @@ html {
      Set it only on body (below). */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  background-color: #07090f;
+  background-color: #0a0500;
 }
 
 body {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden; /* safe on body — does NOT affect the viewport scroll axis */
-  background-color: #07090f; /* Near-true-black for OLED screens */
+  background-color: #0a0500; /* Preto quente — paleta fogo */
   font-family: "Plus Jakarta Sans", "Inter", sans-serif;
 }
 
