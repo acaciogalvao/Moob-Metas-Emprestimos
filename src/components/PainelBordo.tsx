@@ -210,10 +210,13 @@ export function PainelBordo({
   // (gpsKm) quando não há turno aberto e o PainelBordo roda com seu próprio watcher.
   const gpsShiftKm = externalShiftKm != null ? externalShiftKm : gpsKm;
 
-  // combinedKm: melhor estimativa de distância do turno para cálculos de combustível.
-  // GPS e odômetro de transações medem a MESMA distância por métodos diferentes —
-  // somar os dois contava a viagem duas vezes e inflava o km/L exibido. Usa o maior
-  // dos dois (GPS normalmente é mais completo pois cobre também trechos sem corrida).
+  // displayKmTurno: soma GPS + plataformas — o que o motorista percorreu no total.
+  // GPS cobre todos os deslocamentos; plataformas registram as corridas aceitas.
+  // Para exibição no painel, somamos os dois conforme solicitado pelo usuário.
+  const displayKmTurno = gpsShiftKm + totalKmRun;
+
+  // combinedKm: usado apenas para cálculos internos de combustível (km/L).
+  // Usa o maior dos dois para evitar inflar o consumo ao somar fontes sobrepostas.
   const combinedKm = Math.max(totalKmRun, gpsShiftKm);
 
   // Velocidade média: média das amostras do velocímetro GPS (somente pontos em movimento).
@@ -564,17 +567,17 @@ export function PainelBordo({
             {/* ── Linha de destaque: os 3 indicadores principais do turno ── */}
             <div className="grid grid-cols-3 gap-2">
 
-              {/* KM do turno — GPS + corridas + km extra (melhor estimativa) */}
+              {/* KM do turno — GPS + corridas somados */}
               <div className="bg-emerald-950/50 border border-emerald-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
                 <span className="text-[9px] text-emerald-400 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
                 <span className="font-mono font-black text-base text-emerald-300 leading-tight">
-                  {combinedKm >= 0.1
-                    ? `${combinedKm.toFixed(1).replace('.', ',')} km`
+                  {displayKmTurno >= 0.1
+                    ? `${displayKmTurno.toFixed(1).replace('.', ',')} km`
                     : '0,0 km'}
                 </span>
                 <span className="text-[9px] text-emerald-400/80 font-mono leading-none">
                   {gpsShiftKm >= 0.1 && totalKmRun >= 0.1
-                    ? 'GPS + corridas'
+                    ? `GPS ${gpsShiftKm.toFixed(1)} + app ${totalKmRun.toFixed(1)}`
                     : gpsShiftKm >= 0.1
                     ? 'GPS'
                     : 'corridas'}
