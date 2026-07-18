@@ -478,6 +478,36 @@ export function PainelBordo({
                   <path d={rpmArcPath(RPM_GAUGE_START, RPM_GAUGE_START + RPM_GAUGE_SWEEP)}
                     fill="none" stroke="#1e293b" strokeWidth="7" strokeLinecap="round" />
 
+                  {/* Ticks a cada 1 000 RPM (1–8) */}
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const rpm = i * 1000;
+                    const ang = rpmAngle(rpm);
+                    const outer = rpmPolar(ang, RR + 2);
+                    const inner = rpmPolar(ang, RR - (i % 2 === 0 ? 10 : 5));
+                    const labelPt = rpmPolar(ang, RR - 19);
+                    const isMajor = i % 2 === 0;
+                    const isRed = rpm >= RPM_RED;
+                    const isYellow = rpm >= RPM_YELLOW && rpm < RPM_RED;
+                    const tickColor = isRed ? '#f87171' : isYellow ? '#fbbf24' : '#b0a090';
+                    return (
+                      <g key={rpm}>
+                        <line
+                          x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
+                          stroke={tickColor} strokeWidth={isMajor ? 1.5 : 1} strokeLinecap="round"
+                        />
+                        {isMajor && rpm > 0 && (
+                          <text
+                            x={labelPt.x} y={labelPt.y}
+                            textAnchor="middle" dominantBaseline="middle"
+                            fill={tickColor} fontSize="8" fontFamily="monospace" fontWeight="bold"
+                          >
+                            {rpm / 1000}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+
                   {/* Zonas de cor */}
                   <path d={rpmArcPath(RPM_GAUGE_START, rpmArcGreenEnd)}
                     fill="none" stroke="#059669" strokeWidth="7" strokeLinecap="round" opacity="0.5" />
