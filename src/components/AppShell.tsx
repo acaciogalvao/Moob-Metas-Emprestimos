@@ -290,6 +290,7 @@ export function AppShell() {
                       gpsSpeedKmh={shiftGps.speedKmh}
                       gpsShiftKm={shiftGps.shiftKm}
                       gpsMovingTimeMs={shiftGps.movingTimeMs}
+                      gpsAvgSpeedKmh={shiftGps.avgSpeedKmh}
                       isGpsActive={shiftGps.isActive}
                       gpsAccuracy={shiftGps.accuracy}
                       isGpsBackground={shiftGps.isBackground}

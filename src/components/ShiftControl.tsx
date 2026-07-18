@@ -54,6 +54,7 @@ interface ShiftControlProps {
   gpsSpeedKmh?: number;
   gpsShiftKm?: number;
   gpsMovingTimeMs?: number;
+  gpsAvgSpeedKmh?: number;
   isGpsActive?: boolean;
   gpsAccuracy?: number | null;
   isGpsBackground?: boolean;
@@ -80,6 +81,7 @@ export function ShiftControl({
   gpsSpeedKmh,
   gpsShiftKm,
   gpsMovingTimeMs,
+  gpsAvgSpeedKmh,
   isGpsActive = false,
   gpsAccuracy,
   isGpsBackground = false,
@@ -1227,6 +1229,7 @@ export function ShiftControl({
             externalSpeed={gpsSpeedKmh}
             externalShiftKm={gpsShiftKm}
             externalMovingTimeMs={gpsMovingTimeMs}
+            externalAvgSpeedKmh={gpsAvgSpeedKmh}
             isExternalGpsActive={isGpsActive}
             externalAccuracy={gpsAccuracy}
             isGpsBackground={isGpsBackground}
