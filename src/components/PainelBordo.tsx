@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { processGpsPoint, gpsProcessorInit, type GpsProcessorState } from '../utils/gpsProcessor';
+import { estimateMottu110Rpm, MOTTU_110_RPM_REDLINE } from '../utils/vehicleModels';
 
 interface PainelBordoProps {
   activeShift: any;
@@ -49,6 +50,31 @@ const GAUGE_SWEEP = 270;
 
 function speedAngle(kmh: number) {
   return GAUGE_START + (Math.min(kmh, MAX_SPEED) / MAX_SPEED) * GAUGE_SWEEP;
+}
+
+// ── Tacômetro RPM (Mottu Sport 110 / 110cc) ────────────────────────────────────
+const RCX = 90, RCY = 86, RR = 64;
+const RPM_GAUGE_START = 225;
+const RPM_GAUGE_SWEEP = 270;
+const MAX_RPM = MOTTU_110_RPM_REDLINE; // 8 000
+const RPM_YELLOW = 5000;   // zona amarela começa aqui
+const RPM_RED    = 6500;   // zona vermelha começa aqui
+
+function rpmPolar(angleDeg: number, radius: number = RR) {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return { x: RCX + radius * Math.cos(rad), y: RCY + radius * Math.sin(rad) };
+}
+
+function rpmArcPath(startDeg: number, endDeg: number) {
+  const span = ((endDeg - startDeg) % 360 + 360) % 360;
+  const s = rpmPolar(startDeg);
+  const e = rpmPolar(endDeg);
+  const largeArc = span > 180 ? 1 : 0;
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${RR} ${RR} 0 ${largeArc} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+}
+
+function rpmAngle(rpm: number) {
+  return RPM_GAUGE_START + (Math.min(rpm, MAX_RPM) / MAX_RPM) * RPM_GAUGE_SWEEP;
 }
 
 // ── componente principal ───────────────────────────────────────────────────────
@@ -222,6 +248,17 @@ export function PainelBordo({
     : 'SEM_SINAL';
 
   const fuelPct = fuelCapacity > 0 ? Math.max(0, Math.min(100, (fuelLitersRemaining / fuelCapacity) * 100)) : 0;
+
+  // ── RPM estimado (só para moto) ──────────────────────────────────────────────
+  const estimatedRpm   = vehicleType === 'MOTO' ? estimateMottu110Rpm(displaySpeed) : 0;
+  const rpmNeedleDeg   = rpmAngle(estimatedRpm);
+  const rpmNeedleTip   = rpmPolar(rpmNeedleDeg, RR - 8);
+  const rpmNeedleL     = rpmPolar(rpmNeedleDeg + 145, 10);
+  const rpmNeedleR     = rpmPolar(rpmNeedleDeg - 145, 10);
+  const rpmArcGreenEnd  = rpmAngle(RPM_YELLOW);
+  const rpmArcYellowEnd = rpmAngle(RPM_RED);
+  const rpmArcRedEnd    = rpmAngle(MAX_RPM);
+  const rpmNeedleColor  = estimatedRpm < RPM_YELLOW ? '#a855f7' : estimatedRpm < RPM_RED ? '#f59e0b' : '#ef4444';
 
   // ── cores GPS ────────────────────────────────────────────────────────────────
   const gpsColor: Record<GpsSignal, string> = {
@@ -425,6 +462,65 @@ export function PainelBordo({
                 <span className="text-slate-400 font-normal normal-case">±{Math.round(effectiveAccuracy)}m</span>
               )}
             </div>
+
+            {/* ── Tacômetro RPM (somente moto) ── */}
+            {vehicleType === 'MOTO' && (
+              <div className="mt-1">
+                <svg
+                  viewBox="0 0 180 115"
+                  className="w-44 select-none"
+                  style={{ filter: displayIsActive ? 'drop-shadow(0 0 8px rgba(168,85,247,0.18))' : 'none' }}
+                >
+                  {/* Fundo */}
+                  <circle cx={RCX} cy={RCY} r={RR + 12} fill="#0f172a" stroke="#1e293b" strokeWidth="1.5" />
+
+                  {/* Track fundo */}
+                  <path d={rpmArcPath(RPM_GAUGE_START, RPM_GAUGE_START + RPM_GAUGE_SWEEP)}
+                    fill="none" stroke="#1e293b" strokeWidth="7" strokeLinecap="round" />
+
+                  {/* Zonas de cor */}
+                  <path d={rpmArcPath(RPM_GAUGE_START, rpmArcGreenEnd)}
+                    fill="none" stroke="#059669" strokeWidth="7" strokeLinecap="round" opacity="0.5" />
+                  <path d={rpmArcPath(rpmArcGreenEnd, rpmArcYellowEnd)}
+                    fill="none" stroke="#d97706" strokeWidth="7" strokeLinecap="round" opacity="0.6" />
+                  <path d={rpmArcPath(rpmArcYellowEnd, rpmArcRedEnd)}
+                    fill="none" stroke="#dc2626" strokeWidth="7" strokeLinecap="round" opacity="0.7" />
+
+                  {/* Progresso ativo */}
+                  {estimatedRpm > 1500 && (
+                    <path
+                      d={rpmArcPath(RPM_GAUGE_START, rpmNeedleDeg)}
+                      fill="none"
+                      stroke={estimatedRpm < RPM_YELLOW ? '#a855f7' : estimatedRpm < RPM_RED ? '#f59e0b' : '#ef4444'}
+                      strokeWidth="7" strokeLinecap="round" opacity="0.9"
+                      style={{ transition: 'all 0.25s ease-out' }}
+                    />
+                  )}
+
+                  {/* Agulha */}
+                  <polygon
+                    points={`${rpmNeedleTip.x.toFixed(1)},${rpmNeedleTip.y.toFixed(1)} ${rpmNeedleL.x.toFixed(1)},${rpmNeedleL.y.toFixed(1)} ${rpmNeedleR.x.toFixed(1)},${rpmNeedleR.y.toFixed(1)}`}
+                    fill={displayIsActive ? rpmNeedleColor : '#3b2555'}
+                    style={{ transition: 'all 0.25s ease-out', filter: displayIsActive ? `drop-shadow(0 0 4px ${rpmNeedleColor})` : 'none' }}
+                  />
+                  <circle cx={RCX} cy={RCY} r="6" fill={displayIsActive ? '#7c3aed' : '#2d1b4e'} stroke="#6a5c52" strokeWidth="1.5" />
+                  <circle cx={RCX} cy={RCY} r="2.5" fill={displayIsActive ? '#d8b4fe' : '#6a5c52'} />
+
+                  {/* Valor numérico */}
+                  <text x={RCX} y={RCY + 24} textAnchor="middle" fill="white" fontSize="22" fontFamily="monospace" fontWeight="900">
+                    {(estimatedRpm / 1000).toFixed(1)}
+                  </text>
+                  <text x={RCX} y={RCY + 35} textAnchor="middle" fill="#b0a090" fontSize="7" fontFamily="monospace" fontWeight="bold">
+                    ×1000 RPM
+                  </text>
+
+                  {/* Label topo */}
+                  <text x={RCX} y={13} textAnchor="middle" fill="#94a3b8" fontSize="8" fontFamily="monospace" fontWeight="bold" letterSpacing="2">
+                    TACÔMETRO
+                  </text>
+                </svg>
+              </div>
+            )}
           </div>
 
           {/* ── Grade de métricas ── */}
