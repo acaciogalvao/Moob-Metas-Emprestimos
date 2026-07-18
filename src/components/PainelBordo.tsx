@@ -20,6 +20,7 @@ interface PainelBordoProps {
   // GPS externo (do hook useShiftGPS — auto-ativo quando o caixa está aberto)
   externalSpeed?: number;         // km/h do GPS do turno
   externalShiftKm?: number;       // km acumulados no turno pelo GPS
+  externalMovingTimeMs?: number;  // ms em movimento (speed > 5 km/h) no turno
   isExternalGpsActive?: boolean;  // true = GPS do turno está rodando
   externalAccuracy?: number | null; // precisão do sinal em metros
   isGpsBackground?: boolean;      // true = app está em segundo plano mas GPS continua
@@ -91,6 +92,7 @@ export function PainelBordo({
   fuelLitersConsumed,
   externalSpeed,
   externalShiftKm,
+  externalMovingTimeMs,
   isExternalGpsActive = false,
   externalAccuracy,
   isGpsBackground = false,
@@ -212,13 +214,18 @@ export function PainelBordo({
   // dos dois (GPS normalmente é mais completo pois cobre também trechos sem corrida).
   const combinedKm = Math.max(totalKmRun, gpsShiftKm);
 
-  // Velocidade média: usa GPS quando disponível, cai para km de transações como
-  // fallback imediato (evita "-- km/h" no início do turno ou após reload).
-  // Limiar baixo (> 0.05 km) para aparecer assim que há qualquer deslocamento.
-  const kmForAvgSpeed = gpsShiftKm > 0.05 ? gpsShiftKm : totalKmRun;
-  const avgSpeed = shiftHours > 0.01 && kmForAvgSpeed > 0.05
-    ? kmForAvgSpeed / shiftHours
+  // Velocidade média em movimento: usa tempo efetivo em movimento (speed > 5 km/h)
+  // como denominador, eliminando o tempo parado/aguardando corridas.
+  // Fallback: tempo total do turno quando movingTimeMs ainda não tem dados suficientes.
+  const kmForAvgSpeed    = gpsShiftKm > 0.05 ? gpsShiftKm : totalKmRun;
+  const movingHours      = (externalMovingTimeMs ?? 0) / 3_600_000;
+  const avgSpeedMoving   = movingHours > 0.001 && kmForAvgSpeed > 0.05
+    ? kmForAvgSpeed / movingHours
     : 0;
+  // Fallback para tempo total quando não há dados de tempo em movimento
+  const avgSpeed         = avgSpeedMoving > 0
+    ? avgSpeedMoving
+    : (shiftHours > 0.01 && kmForAvgSpeed > 0.05 ? kmForAvgSpeed / shiftHours : 0);
 
   // Consumo real km/L: usa combinedKm para ativar mais cedo (não depende só do GPS).
   // Usa fuelLitersConsumed (de abastecimentos) quando disponível;

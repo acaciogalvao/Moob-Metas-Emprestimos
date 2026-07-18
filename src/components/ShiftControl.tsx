@@ -53,6 +53,7 @@ interface ShiftControlProps {
   // GPS do turno (auto-ativo quando caixa aberto, via useShiftGPS)
   gpsSpeedKmh?: number;
   gpsShiftKm?: number;
+  gpsMovingTimeMs?: number;
   isGpsActive?: boolean;
   gpsAccuracy?: number | null;
   isGpsBackground?: boolean;
@@ -78,6 +79,7 @@ export function ShiftControl({
   onToggleExcludeSundays,
   gpsSpeedKmh,
   gpsShiftKm,
+  gpsMovingTimeMs,
   isGpsActive = false,
   gpsAccuracy,
   isGpsBackground = false,
@@ -1224,6 +1226,7 @@ export function ShiftControl({
             fuelLitersConsumed={displayLiters}
             externalSpeed={gpsSpeedKmh}
             externalShiftKm={gpsShiftKm}
+            externalMovingTimeMs={gpsMovingTimeMs}
             isExternalGpsActive={isGpsActive}
             externalAccuracy={gpsAccuracy}
             isGpsBackground={isGpsBackground}

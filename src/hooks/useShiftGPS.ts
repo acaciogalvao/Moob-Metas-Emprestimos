@@ -20,13 +20,17 @@ import {
 } from '../utils/gpsProcessor';
 import { useBackgroundKeepAlive } from './useBackgroundKeepAlive';
 
-const GPS_KM_PREFIX   = 'moob_gps_km_'; // + shiftId
-const RATE_LIMIT_MS   = 200;            // 5 Hz máximo — economiza bateria/CPU
+const GPS_KM_PREFIX       = 'moob_gps_km_';       // + shiftId
+const GPS_MOVING_MS_PREFIX = 'moob_moving_ms_';   // + shiftId
+const RATE_LIMIT_MS        = 200;                  // 5 Hz máximo — economiza bateria/CPU
+const MOVING_SPEED_KMH     = 5;                    // limiar para "em movimento"
+const MOVING_GAP_MAX_MS    = 30_000;               // gap máximo entre pontos em movimento
 
 export interface ShiftGpsData {
   speedKmh: number;
   shiftKm: number;
   totalKm: number;
+  movingTimeMs: number;     // ms acumulados em movimento (speed > 5 km/h) no turno
   isActive: boolean;        // true = GPS recebendo sinal
   isStarting: boolean;      // true = GPS iniciando, ainda sem sinal
   accuracy: number | null;
@@ -36,29 +40,32 @@ export interface ShiftGpsData {
 }
 
 export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null): ShiftGpsData {
-  const [speedKmh, setSpeedKmh]   = useState(0);
-  const [shiftKm, setShiftKm]     = useState(0);
-  const [totalKm, setTotalKm]     = useState(0);
-  const [isActive, setIsActive]   = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-  const [accuracy, setAccuracy]   = useState<number | null>(null);
+  const [speedKmh, setSpeedKmh]       = useState(0);
+  const [shiftKm, setShiftKm]         = useState(0);
+  const [totalKm, setTotalKm]         = useState(0);
+  const [movingTimeMs, setMovingTimeMs] = useState(0);
+  const [isActive, setIsActive]       = useState(false);
+  const [isStarting, setIsStarting]   = useState(false);
+  const [accuracy, setAccuracy]       = useState<number | null>(null);
 
-  const processorRef        = useRef<GpsProcessorState>(gpsProcessorInit());
-  const watchIdRef          = useRef<number | null>(null);
-  const lastGpsFireRef      = useRef<number>(0);
-  const lastProcessedRef    = useRef<number>(0); // rate limiting 5 Hz
-  const lastSpeedKmhRef     = useRef(0);
+  const processorRef          = useRef<GpsProcessorState>(gpsProcessorInit());
+  const watchIdRef            = useRef<number | null>(null);
+  const lastGpsFireRef        = useRef<number>(0);
+  const lastProcessedRef      = useRef<number>(0); // rate limiting 5 Hz
+  const lastSpeedKmhRef       = useRef(0);
+  const movingTimeMsRef       = useRef(0);          // tempo em movimento acumulado (ms)
+  const lastMovingTsRef       = useRef<number | null>(null); // timestamp do último ponto "em movimento"
   // Janela deslizante para estimativa de velocidade média em background
-  const speedWindowRef      = useRef<number[]>([]);
-  const MAX_SPEED_WINDOW    = 5; // últimas 5 leituras válidas
-  const gpsUpdatesInBgRef   = useRef(0);
-  const isShiftOpenRef      = useRef(false);
-  const shiftIdRef          = useRef<string | null>(null);
+  const speedWindowRef        = useRef<number[]>([]);
+  const MAX_SPEED_WINDOW      = 5; // últimas 5 leituras válidas
+  const gpsUpdatesInBgRef     = useRef(0);
+  const isShiftOpenRef        = useRef(false);
+  const shiftIdRef            = useRef<string | null>(null);
 
   useEffect(() => { isShiftOpenRef.current = isShiftOpen; }, [isShiftOpen]);
   useEffect(() => { shiftIdRef.current = shiftId; }, [shiftId]);
 
-  // ── Helpers de persistência de km ────────────────────────────────────────
+  // ── Helpers de persistência de km e tempo em movimento ───────────────────
   const saveKmLocal = useCallback((km: number) => {
     const id = shiftIdRef.current;
     if (id) localStorage.setItem(GPS_KM_PREFIX + id, km.toString());
@@ -71,8 +78,23 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
     return isNaN(parsed) || parsed < 0 ? 0 : parsed;
   }, []);
 
+  const saveMovingMs = useCallback((ms: number) => {
+    const id = shiftIdRef.current;
+    if (id) localStorage.setItem(GPS_MOVING_MS_PREFIX + id, ms.toString());
+  }, []);
+
+  const loadMovingMs = useCallback((id: string): number => {
+    const raw = localStorage.getItem(GPS_MOVING_MS_PREFIX + id);
+    if (!raw) return 0;
+    const parsed = parseFloat(raw);
+    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  }, []);
+
   const clearKmLocal = useCallback((id: string | null) => {
-    if (id) localStorage.removeItem(GPS_KM_PREFIX + id);
+    if (id) {
+      localStorage.removeItem(GPS_KM_PREFIX + id);
+      localStorage.removeItem(GPS_MOVING_MS_PREFIX + id);
+    }
   }, []);
 
   // ── Keep-alive em segundo plano ──────────────────────────────────────────
@@ -134,9 +156,12 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
     if (!preserveKm) {
       processorRef.current    = gpsProcessorInit();
       lastSpeedKmhRef.current = 0;
+      movingTimeMsRef.current = 0;
+      lastMovingTsRef.current = null;
       gpsUpdatesInBgRef.current = 0;
       setShiftKm(0);
       setTotalKm(0);
+      setMovingTimeMs(0);
       setSpeedKmh(0);
       setIsActive(false);
     }
@@ -177,6 +202,22 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
           if (win.length > MAX_SPEED_WINDOW) win.shift();
         }
 
+        // ── Tempo em movimento ─────────────────────────────────────────
+        if (result.speedKmh >= MOVING_SPEED_KMH) {
+          const prev = lastMovingTsRef.current;
+          if (prev !== null) {
+            const delta = Math.min(timestamp - prev, MOVING_GAP_MAX_MS);
+            if (delta > 0) {
+              movingTimeMsRef.current += delta;
+              setMovingTimeMs(movingTimeMsRef.current);
+              saveMovingMs(movingTimeMsRef.current);
+            }
+          }
+          lastMovingTsRef.current = timestamp;
+        } else {
+          lastMovingTsRef.current = null; // parou — reseta janela
+        }
+
         setSpeedKmh(result.speedKmh);
         setShiftKm(result.tripKm);
         setTotalKm(result.totalKm);
@@ -186,7 +227,7 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
         saveKmLocal(result.tripKm);
 
         console.log(
-          `[ShiftGPS] ${result.speedKmh} km/h | ${result.tripKm.toFixed(3)} km` +
+          `[ShiftGPS] ${result.speedKmh} km/h | ${result.tripKm.toFixed(3)} km | mov ${Math.round(movingTimeMsRef.current / 1000)}s` +
           (isBackgroundRef.current ? ' [bg]' : '')
         );
       },
@@ -227,18 +268,21 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
       // Tenta restaurar km persistido de sessão anterior para este turno.
       // Se o ID do turno mudou (novo turno), loadKmLocal retornará 0
       // pois a chave será diferente.
-      const savedKm = shiftId ? loadKmLocal(shiftId) : 0;
+      const savedKm  = shiftId ? loadKmLocal(shiftId)  : 0;
+      const savedMs  = shiftId ? loadMovingMs(shiftId) : 0;
 
       if (savedKm > 0) {
-        // Reload com turno já em andamento: restaura km acumulado
+        // Reload com turno já em andamento: restaura km e tempo em movimento
         processorRef.current = {
           ...gpsProcessorInit(),
           tripKm: savedKm,
           totalKm: savedKm,
         };
+        movingTimeMsRef.current = savedMs;
         setShiftKm(savedKm);
         setTotalKm(savedKm);
-        console.log(`[ShiftGPS] km restaurado do localStorage: ${savedKm.toFixed(3)} km`);
+        setMovingTimeMs(savedMs);
+        console.log(`[ShiftGPS] km restaurado: ${savedKm.toFixed(3)} km | mov ${Math.round(savedMs / 1000)}s`);
         attachWatcher(true); // preserva o km restaurado
       } else {
         attachWatcher(false); // turno novo — zera km
@@ -283,7 +327,7 @@ export function useShiftGPS(isShiftOpen: boolean, shiftId: string | null = null)
   }, [clearKmLocal]);
 
   return {
-    speedKmh, shiftKm, totalKm,
+    speedKmh, shiftKm, totalKm, movingTimeMs,
     isActive, isStarting,
     accuracy, isBackground, isAudioActive,
     resetShiftKm,

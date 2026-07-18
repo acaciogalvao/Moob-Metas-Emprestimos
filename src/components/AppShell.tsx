@@ -289,6 +289,7 @@ export function AppShell() {
                       onToggleExcludeSundays={handleToggleExcludeSundays}
                       gpsSpeedKmh={shiftGps.speedKmh}
                       gpsShiftKm={shiftGps.shiftKm}
+                      gpsMovingTimeMs={shiftGps.movingTimeMs}
                       isGpsActive={shiftGps.isActive}
                       gpsAccuracy={shiftGps.accuracy}
                       isGpsBackground={shiftGps.isBackground}
