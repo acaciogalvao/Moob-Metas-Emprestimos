@@ -173,8 +173,12 @@ export function PainelBordo({
 
   const shiftHours = shiftMs / 3_600_000;
 
-  // km do turno vindos exclusivamente do GPS (não mistura com odômetro de transações)
-  const gpsShiftKm = isExternalGpsActive ? (externalShiftKm ?? 0) : gpsKm;
+  // km do turno vindos exclusivamente do GPS (não mistura com odômetro de transações).
+  // Usa externalShiftKm sempre que estiver disponível (valor acumulado do useShiftGPS),
+  // independente de isExternalGpsActive — se o sinal cair momentaneamente, isActive vira
+  // false mas o km acumulado não deve ser perdido da exibição. Só cai para o GPS interno
+  // (gpsKm) quando não há turno aberto e o PainelBordo roda com seu próprio watcher.
+  const gpsShiftKm = externalShiftKm != null ? externalShiftKm : gpsKm;
 
   // combinedKm: melhor estimativa de distância do turno para cálculos de combustível.
   // GPS e odômetro de transações medem a MESMA distância por métodos diferentes —
