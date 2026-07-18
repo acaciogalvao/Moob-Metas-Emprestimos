@@ -335,7 +335,7 @@ export function PainelBordo({
             <svg
               viewBox="0 0 240 195"
               className="w-56 h-48 select-none"
-              style={{ filter: displayIsActive ? 'drop-shadow(0 0 12px rgba(6,182,212,0.2))' : 'none' }}
+              style={{ filter: displayIsActive ? 'drop-shadow(0 0 12px rgba(249,115,22,0.25))' : 'none' }}
             >
               {/* Fundo circular */}
               <circle cx={CX} cy={CY} r={R + 14} fill="#0f172a" stroke="#1e293b" strokeWidth="1.5" />
@@ -381,7 +381,7 @@ export function PainelBordo({
                   <line
                     x1={t.inner.x} y1={t.inner.y}
                     x2={t.outer.x} y2={t.outer.y}
-                    stroke={t.major ? '#94a3b8' : '#475569'}
+                    stroke={t.major ? '#b0a090' : '#6a5c52'}
                     strokeWidth={t.major ? 2 : 1}
                     strokeLinecap="round"
                   />
@@ -389,7 +389,7 @@ export function PainelBordo({
                     <text
                       x={t.label.x} y={t.label.y}
                       textAnchor="middle" dominantBaseline="middle"
-                      fill="#64748b" fontSize="9" fontFamily="monospace" fontWeight="bold"
+                      fill="#b0a090" fontSize="9" fontFamily="monospace" fontWeight="bold"
                     >
                       {t.kmh}
                     </text>
@@ -400,19 +400,19 @@ export function PainelBordo({
               {/* Agulha */}
               <polygon
                 points={`${needleTip.x.toFixed(1)},${needleTip.y.toFixed(1)} ${needleL.x.toFixed(1)},${needleL.y.toFixed(1)} ${needleR.x.toFixed(1)},${needleR.y.toFixed(1)}`}
-                fill={displayIsActive ? '#06b6d4' : '#334155'}
-                style={{ transition: 'all 0.25s ease-out', filter: displayIsActive ? 'drop-shadow(0 0 4px #06b6d4)' : 'none' }}
+                fill={displayIsActive ? '#f97316' : '#4e4038'}
+                style={{ transition: 'all 0.25s ease-out', filter: displayIsActive ? 'drop-shadow(0 0 6px #f97316)' : 'none' }}
               />
 
               {/* Centro hub */}
-              <circle cx={CX} cy={CY} r="8" fill={displayIsActive ? '#0e7490' : '#1e293b'} stroke="#334155" strokeWidth="2" />
-              <circle cx={CX} cy={CY} r="3" fill={displayIsActive ? '#67e8f9' : '#475569'} />
+              <circle cx={CX} cy={CY} r="8" fill={displayIsActive ? '#c2410c' : '#342a24'} stroke="#6a5c52" strokeWidth="2" />
+              <circle cx={CX} cy={CY} r="3" fill={displayIsActive ? '#fdba74' : '#6a5c52'} />
 
               {/* Velocidade numérica */}
               <text x={CX} y={CY + 28} textAnchor="middle" fill="white" fontSize="28" fontFamily="monospace" fontWeight="900">
                 {displaySpeed}
               </text>
-              <text x={CX} y={CY + 42} textAnchor="middle" fill="#64748b" fontSize="9" fontFamily="monospace" fontWeight="bold">
+              <text x={CX} y={CY + 42} textAnchor="middle" fill="#b0a090" fontSize="9" fontFamily="monospace" fontWeight="bold">
                 km/h
               </text>
             </svg>
@@ -422,7 +422,7 @@ export function PainelBordo({
               <span className={`w-2 h-2 rounded-full ${gpsDot[effectiveSignal]}`} />
               GPS: {effectiveSignal.replace('_', ' ')}
               {effectiveAccuracy != null && effectiveSignal !== 'SEM_SINAL' && (
-                <span className="text-slate-500 font-normal normal-case">±{Math.round(effectiveAccuracy)}m</span>
+                <span className="text-slate-400 font-normal normal-case">±{Math.round(effectiveAccuracy)}m</span>
               )}
             </div>
           </div>
@@ -435,13 +435,13 @@ export function PainelBordo({
 
               {/* KM do turno — GPS + corridas + km extra (melhor estimativa) */}
               <div className="bg-emerald-950/50 border border-emerald-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
-                <span className="text-[9px] text-emerald-400/70 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
+                <span className="text-[9px] text-emerald-400 uppercase font-black tracking-wider leading-none">🛣️ KM Turno</span>
                 <span className="font-mono font-black text-base text-emerald-300 leading-tight">
                   {combinedKm >= 0.1
                     ? `${combinedKm.toFixed(1).replace('.', ',')} km`
                     : '0,0 km'}
                 </span>
-                <span className="text-[9px] text-emerald-500/60 font-mono leading-none">
+                <span className="text-[9px] text-emerald-400/80 font-mono leading-none">
                   {gpsShiftKm >= 0.1 && totalKmRun >= 0.1
                     ? 'GPS + corridas'
                     : gpsShiftKm >= 0.1
@@ -452,13 +452,13 @@ export function PainelBordo({
 
               {/* Velocidade média */}
               <div className="bg-sky-950/50 border border-sky-500/25 rounded-xl p-2.5 flex flex-col gap-0.5">
-                <span className="text-[9px] text-sky-400/70 uppercase font-black tracking-wider leading-none">📊 Vel. Média</span>
+                <span className="text-[9px] text-sky-400 uppercase font-black tracking-wider leading-none">📊 Vel. Média</span>
                 <span className="font-mono font-black text-base text-sky-300 leading-tight">
                   {avgSpeed > 0
                     ? `${avgSpeed.toFixed(0)} km/h`
                     : '-- km/h'}
                 </span>
-                <span className="text-[9px] text-sky-500/60 font-mono leading-none">do turno</span>
+                <span className="text-[9px] text-sky-400/80 font-mono leading-none">do turno</span>
               </div>
 
               {/* Consumo real km/L */}
@@ -468,17 +468,17 @@ export function PainelBordo({
                   : 'bg-slate-900/40 border-slate-700/30'
               }`}>
                 <span className={`text-[9px] uppercase font-black tracking-wider leading-none ${
-                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-400/70' : 'text-slate-500'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-400' : 'text-slate-400'
                 }`}>⚙️ Consumo</span>
                 <span className={`font-mono font-black text-base leading-tight ${
-                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-300' : 'text-slate-400'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-300' : 'text-slate-300'
                 }`}>
                   {consumoRealKmL > 0
                     ? `${consumoRealKmL.toFixed(1).replace('.', ',')} km/L`
                     : '-- km/L'}
                 </span>
                 <span className={`text-[9px] font-mono leading-none ${
-                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-500/60' : 'text-slate-600'
+                  combinedKm >= 0.3 && litrosBase > 0.01 ? 'text-amber-400/80' : 'text-slate-400'
                 }`}>
                   {combinedKm >= 0.3 && litrosBase > 0.01 ? 'real' : 'configurado'}
                 </span>
@@ -507,18 +507,18 @@ export function PainelBordo({
               />
 
               {/* Combustível restante */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">⛽ Combustível</span>
+              <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-2.5 flex flex-col gap-1">
+                <span className="text-[10px] text-slate-300 uppercase font-black tracking-wider">⛽ Combustível</span>
                 <span className="font-mono font-black text-sm text-white">
                   {fuelLitersRemaining > 0 ? `${fuelLitersRemaining.toFixed(1).replace('.', ',')} L` : '-- L'}
                 </span>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-0.5">
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${fuelPct}%`, backgroundColor: fuelColor }}
                   />
                 </div>
-                <span className="text-[9px] text-slate-500 font-mono">
+                <span className="text-[9px] text-slate-400 font-mono">
                   {fuelCapacity > 0 ? `${fuelPct.toFixed(0)}% de ${fuelCapacity}L` : '--'}
                 </span>
               </div>
@@ -611,7 +611,7 @@ function MetricCard({
       <span className={`font-black text-sm ${c.text} ${mono ? 'font-mono' : ''}`}>
         {value}
       </span>
-      {sub && <span className="text-[9px] text-slate-600 font-mono">{sub}</span>}
+      {sub && <span className="text-[9px] text-slate-400 font-mono">{sub}</span>}
     </div>
   );
 }
