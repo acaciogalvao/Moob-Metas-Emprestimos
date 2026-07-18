@@ -35,6 +35,18 @@
   --color-amber-400: #fbbf24;
   --color-amber-500: #f59e0b;
   --color-amber-600: #d97706;
+
+  /* slate → cinza quente (stone) — legível sobre fundo escuro-quente */
+  --color-slate-100: #f0ebe6;
+  --color-slate-200: #e0d8d0;
+  --color-slate-300: #c8bdb0;
+  --color-slate-400: #b0a090;  /* era #94a3b8 — clareado e aquecido */
+  --color-slate-500: #8a7a6e;  /* era #64748b — mais contraste */
+  --color-slate-600: #6a5c52;
+  --color-slate-700: #4e4038;
+  --color-slate-800: #342a24;
+  --color-slate-900: #1e1510;
+  --color-slate-950: #120d09;
 }
 
 /* ─── Base ─────────────────────────────────────────────────────── */
