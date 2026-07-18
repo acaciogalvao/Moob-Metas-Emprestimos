@@ -192,6 +192,31 @@ export const MOTO_VEHICLE_MODEL_OPTIONS: VehicleModelDefinition[] = Object.value
   (m) => m.type === 'MOTO'
 );
 
+// ── Estimativa de RPM (Mottu Sport 110 / Honda CG 110) ────────────────────────
+// Sem OBD, o RPM é estimado a partir da velocidade via curva linear calibrada
+// para uso em cidade (3ª/4ª marcha predominante).
+//
+// Calibração:
+//   • Marcha-lenta (idle): ~1 500 RPM
+//   • Cruzeiro 50 km/h (4ª): ~4 400 RPM  → fator ≈ 58 RPM/(km/h)
+//   • Linha vermelha (redline): ~8 000 RPM (motor 110cc 4T)
+//
+// Resultados:
+//   0 km/h → 1 500 | 30 km/h → ~3 200 | 50 km/h → ~4 400 | 60 km/h → ~5 000
+const MOTTU_110_IDLE_RPM      = 1500;
+const MOTTU_110_RPM_PER_KMPH  = 58;   // RPM adicionado por km/h (marcha de cruzeiro)
+export const MOTTU_110_RPM_REDLINE = 8000;
+
+/**
+ * Estima o RPM do motor Mottu Sport 110 a partir da velocidade (GPS).
+ * Retorna o valor em RPM (ex.: 4400). Para exibição ×1000, divida por 1000.
+ */
+export function estimateMottu110Rpm(speedKmh: number): number {
+  if (!speedKmh || speedKmh <= 0) return MOTTU_110_IDLE_RPM;
+  const rpm = MOTTU_110_IDLE_RPM + speedKmh * MOTTU_110_RPM_PER_KMPH;
+  return Math.min(rpm, MOTTU_110_RPM_REDLINE);
+}
+
 /**
  * Consumo ESTÁVEL (km/L) para contabilidade de combustível (marcador do tanque, km/L
  * "real" do Painel de Bordo, custo de combustível por corrida, litros sugeridos ao

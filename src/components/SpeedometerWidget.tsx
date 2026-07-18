@@ -6,6 +6,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AppWindow, X } from 'lucide-react';
 import { playBeep } from '../utils/audio';
+import { estimateMottu110Rpm, MOTTU_110_RPM_REDLINE } from '../utils/vehicleModels';
 
 interface SpeedometerWidgetProps {
   isSpeedometerActive: boolean;
@@ -34,6 +35,20 @@ export function SpeedometerWidget({
   const displaySpeed = speedSimCount > 0 ? speeds[speedSimCount % speeds.length] : currentSpeed;
   const isSimulated = speedSimCount > 0;
 
+  // RPM estimado a partir da velocidade (Mottu Sport 110 / 110cc)
+  const estimatedRpm = estimateMottu110Rpm(displaySpeed);
+  const rpmDisplay = (estimatedRpm / 1000).toFixed(1);
+  const rpmRatio = estimatedRpm / MOTTU_110_RPM_REDLINE;
+  let rpmColorClass = "border-emerald-500 shadow-emerald-500/30 text-emerald-400";
+  let rpmBgClass = "bg-emerald-950/20";
+  if (rpmRatio > 0.75) {
+    rpmColorClass = "border-rose-500 shadow-rose-500/30 text-rose-400 animate-pulse";
+    rpmBgClass = "bg-rose-950/20";
+  } else if (rpmRatio > 0.5) {
+    rpmColorClass = "border-amber-500 shadow-amber-500/30 text-amber-400";
+    rpmBgClass = "bg-amber-950/20";
+  }
+
   let colorClass = "border-emerald-500 shadow-emerald-500/40 text-emerald-400";
   let bgClass = "bg-emerald-950/20";
   if (displaySpeed > 90) {
@@ -58,6 +73,24 @@ export function SpeedometerWidget({
             className="fixed bottom-24 right-4 z-[999] cursor-grab active:cursor-grabbing font-sans"
             title="Velocímetro - Toque para simular velocidade"
           >
+            {/* Wrapper lado a lado: RPM + Velocidade */}
+            <div className="flex items-center gap-2">
+
+              {/* RPM Bubble */}
+              <div className="relative">
+                <div className={`w-16 h-16 rounded-full bg-slate-950/90 border-2 ${rpmColorClass} ${rpmBgClass} shadow-xl flex flex-col items-center justify-center backdrop-blur-md select-none transition-all duration-300`}>
+                  <span className="text-lg font-black tracking-tighter leading-none mt-0.5">
+                    {rpmDisplay}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 tracking-wide leading-tight">
+                    ×1000
+                  </span>
+                  <span className="text-[8px] font-bold text-slate-500 tracking-wide leading-tight">
+                    RPM
+                  </span>
+                </div>
+              </div>
+
             <div className="relative">
               {/* Speed Bubble Circle */}
               <div
@@ -119,6 +152,7 @@ export function SpeedometerWidget({
                 <AppWindow className="w-3 h-3" />
               </button>
             </div>
+            </div> {/* flex wrapper */}
           </motion.div>
         )}
       </AnimatePresence>
