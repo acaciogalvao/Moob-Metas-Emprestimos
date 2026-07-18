@@ -91,7 +91,7 @@ export function SpeedometerWidget({
                 </div>
               </div>
 
-            <div className="relative">
+              <div className="relative">
               {/* Speed Bubble Circle */}
               <div
                 onClick={() => {
