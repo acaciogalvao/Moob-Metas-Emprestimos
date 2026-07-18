@@ -8,7 +8,8 @@ import { useBackgroundKeepAlive } from './useBackgroundKeepAlive';
 
 export function useSpeedometer(hasOpenShift: boolean, shiftGpsSpeedKmh: number, shiftGpsIsActive: boolean) {
   const [isSpeedometerActive, setIsSpeedometerActive] = useState<boolean>(() => {
-    return localStorage.getItem('moob_speedometer_active') === 'true';
+    // Ativo por padrão; só desliga se o usuário explicitamente fechou (valor salvo = 'false')
+    return localStorage.getItem('moob_speedometer_active') !== 'false';
   });
 
   // Keep-alive ativo apenas quando velocímetro standalone (sem turno aberto)
