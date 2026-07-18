@@ -23,9 +23,9 @@ export interface VehicleModelDefinition {
 
 // ── Mottu Sport 110 2025 ─────────────────────────────────────────────────────
 // Motor: 109,1 cc monocilíndrico (base Honda CG 110), 4 tempos, injeção eletrônica.
-// Consumo real confirmado pelo operador em uso cidade: 55-60 km/L.
+// Consumo real confirmado pelo operador em uso cidade: 50-55 km/L.
 // Ponto de calibração escolhido: 50 km/h (cruzeiro típico em cidade com paradas),
-// alvo = 57,5 km/L (ponto médio da faixa 55-60 km/L confirmada).
+// alvo = 52,5 km/L (ponto médio da faixa 50-55 km/L confirmada).
 const MOTTU_110_CALIBRATION_SPEED_KMH = 50;
 
 // Modelo de consumo: L/h = consumo de marcha-lenta (fixo, independente da velocidade)
@@ -34,16 +34,16 @@ const MOTTU_110_CALIBRATION_SPEED_KMH = 50;
 // Isso produz uma curva em "sino" fisicamente correta:
 //  • Pior em velocidades muito baixas (tráfego parado/rastejar): motor gasta combustível
 //    de marcha-lenta enquanto avança pouquíssima distância → km/L baixo.
-//  • Pico de eficiência em ~46 km/h (cruzeiro suave cidade): equilíbrio ótimo.
+//  • Pico de eficiência em ~43 km/h (cruzeiro suave cidade): equilíbrio ótimo.
 //  • Degrada acima do pico pelo aumento de arrasto aerodinâmico.
 //
-// Coeficiente de arrasto (b) derivado para que Lph(50 km/h) = 50/57,5 = 0,8696 L/h:
-//   b = (0,8696 − idleLph) / 50² = 0,4696 / 2500 ≈ 0,00018783
+// Coeficiente de arrasto (b) derivado para que Lph(50 km/h) = 50/52,5 = 0,9524 L/h:
+//   b = (0,9524 − idleLph) / 50² = 0,5524 / 2500 ≈ 0,00022095
 //
 // Resultados nas velocidades de uso do operador (cidade 20-60 km/h):
-//   20 km/h → ~42 km/L | 30 km/h → ~53 | 40 km/h → ~57 | 50 km/h → 57,5 | 60 km/h → ~56
+//   20 km/h → ~41 km/L | 30 km/h → ~50 | 40 km/h → ~53 | 50 km/h → 52,5 | 60 km/h → ~50
 const MOTTU_110_IDLE_LPH = 0.4;       // L/h no marcha-lenta: típico 110cc injeção ≈ 0,35-0,45 L/h
-const MOTTU_110_CALIBRATION_TARGET_KML = 57.5;
+const MOTTU_110_CALIBRATION_TARGET_KML = 52.5;
 const MOTTU_110_DRAG_COEFFICIENT =
   (MOTTU_110_CALIBRATION_SPEED_KMH / MOTTU_110_CALIBRATION_TARGET_KML - MOTTU_110_IDLE_LPH) /
   (MOTTU_110_CALIBRATION_SPEED_KMH * MOTTU_110_CALIBRATION_SPEED_KMH);
@@ -61,11 +61,11 @@ export const VEHICLE_MODELS: Record<VehicleModelId, VehicleModelDefinition> = {
     id: 'MOTTU_SPORT_110',
     label: 'Mottu Sport 110 (2025)',
     type: 'MOTO',
-    // Faixa real confirmada pelo operador em cidade: 55-60 km/L.
+    // Faixa real confirmada pelo operador em cidade: 50-55 km/L.
     // min: valor realista em tráfego muito parado (rastejar)/subida; max: downhill/vento a favor.
     minConsumptionKmL: 20,
-    maxConsumptionKmL: 65,
-    idleConsumptionKmL: 57.5, // mostrado ao parar — ponto médio da faixa real do operador
+    maxConsumptionKmL: 60,
+    idleConsumptionKmL: 52.5, // mostrado ao parar — ponto médio da faixa real do operador
   },
 };
 
@@ -75,8 +75,8 @@ export const VEHICLE_MODELS: Record<VehicleModelId, VehicleModelDefinition> = {
  *   L/h = MOTTU_110_IDLE_LPH + MOTTU_110_DRAG_COEFFICIENT × velocidade²
  *   km/L = velocidade / L/h
  *
- * Calibrada com dados reais do operador: 57,5 km/L a 50 km/h (cruzeiro cidade),
- * pico de ~57,7 km/L em ~46 km/h. Clampada entre 20 e 65 km/L.
+ * Calibrada com dados reais do operador: 52,5 km/L a 50 km/h (cruzeiro cidade),
+ * pico de ~53,2 km/L em ~43 km/h. Clampada entre 20 e 60 km/L.
  */
 export function computeMottuSport110ConsumptionKmL(speedKmh: number): number {
   const model = VEHICLE_MODELS.MOTTU_SPORT_110;
