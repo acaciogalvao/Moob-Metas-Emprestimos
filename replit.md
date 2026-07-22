@@ -55,8 +55,8 @@ npm run build
 npm start
 ```
 
-## Setup status (2026-07-15)
-Project re-imported from GitHub again; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) recreated, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. Gemini and Mercado Pago secrets still not provided, so those features remain non-functional until set. `MONGODB_URI` also still not set, so it's using the hardcoded fallback Atlas URI baked into the code — set it to point at your own database when ready.
+## Setup status (2026-07-22)
+Project re-imported from GitHub; dependencies reinstalled and the `Start application` workflow (`npm run dev` on port 5000) configured, running, and verified via screenshot — the app boots, connects to the fallback MongoDB, and renders the dashboard. `GEMINI_API_KEY` and `MERCADOPAGO_ACCESS_TOKEN` secrets not yet provided — AI and payment features will be inactive until set via the Secrets panel (🔒). `MONGODB_URI` also not set, so the app uses the hardcoded fallback Atlas URI in `src/server/config/database.ts` — set it when you want to point at your own database.
 
 ## Automatic GPS calibration & offline-first persistence (2026-07-14)
 - Fuel-consumption calibration at shift close is now always automatic (`src/components/ShiftControl.tsx`) — the manual "calibrar veículo" checkbox was removed; the app always recalibrates km/L from odometer + fuel data when available.
