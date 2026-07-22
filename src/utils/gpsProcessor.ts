@@ -236,8 +236,18 @@ export function processGpsPoint(
   }
   if (zeroCount >= ZERO_CONFIRM_COUNT) velSuave = 0;
 
-  // ── Odômetro: sempre acumula distância Haversine ───────────────────────
-  const distKm = distM / 1000;
+  // ── Odômetro: acumula apenas quando em movimento real ─────────────────
+  // Gate de velocidade usa a mesma fonte e limiar do velocímetro:
+  //  - chip GPS (Doppler): nativeSpeed >= 0.5 m/s (~1.8 km/h)
+  //  - Haversine (fallback): velocidade calculada >= 2 km/h
+  // Isso evita acumular ruído de posição GPS enquanto o veículo está parado
+  // (semáforos, esperas, estacionamento), que é a principal causa de
+  // diferença entre o hodômetro GPS e o odômetro real do veículo.
+  const haversineKmhRaw = (distM / 1000) / deltaTHours;
+  const odoGateOk = hasNativeSpeed
+    ? nativeSpeedMs! >= NATIVE_ZERO_SNAP_MS           // chip Doppler: ≥ 0.5 m/s
+    : haversineKmhRaw >= HAVERSINE_ZERO_SNAP_KMH;     // calculado: ≥ 2 km/h
+  const distKm  = odoGateOk ? distM / 1000 : 0;
   const totalKm = prev.totalKm + distKm;
   const tripKm  = prev.tripKm  + distKm;
 
