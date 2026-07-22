@@ -10,9 +10,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 /** Searches Loan → Saving → Goal and returns the first match. */
 async function findByIdAndUpdateBoth(id: string, update: any) {
-  let doc = await Loan.findByIdAndUpdate(id, update, { new: true });
-  if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { new: true });
-  if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { new: true });
+  let doc = await Loan.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+  if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+  if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { returnDocument: 'after' });
   return doc;
 }
 

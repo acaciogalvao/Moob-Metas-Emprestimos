@@ -44,7 +44,7 @@ export async function syncLocalToCloud(): Promise<{
           const { _id, ...clean } = item;
           await ShiftM.findOneAndUpdate({ id: item.id }, clean, {
             upsert: true,
-            new: true,
+            returnDocument: 'after',
           });
           shiftsSynced++;
         }
@@ -72,7 +72,7 @@ export async function syncLocalToCloud(): Promise<{
             await M.findOneAndUpdate(
               { _id: id },
               { ...item, _id: id },
-              { upsert: true, new: true }
+              { upsert: true, returnDocument: 'after' }
             );
             counterRef.n++;
           }

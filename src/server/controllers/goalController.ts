@@ -151,9 +151,9 @@ export const updateGoal = async (req: Request, res: Response) => {
     const { id } = req.params;
     const update = sanitizeGoalUpdate(req.body);
 
-    let updated = await Loan.findByIdAndUpdate(id, update, { new: true });
-    if (!updated) updated = await Saving.findByIdAndUpdate(id, update, { new: true });
-    if (!updated) updated = await Goal.findByIdAndUpdate(id, update, { new: true });
+    let updated = await Loan.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+    if (!updated) updated = await Saving.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+    if (!updated) updated = await Goal.findByIdAndUpdate(id, update, { returnDocument: 'after' });
 
     if (!updated) return res.status(404).json({ error: "Meta/Empréstimo não encontrado" });
     res.json(updated);
@@ -193,9 +193,9 @@ export const deletePayment = async (req: Request, res: Response) => {
     const pullByPaymentId = { $pull: { payments: { paymentId } } } as any;
 
     const tryUpdate = async (update: any) => {
-      let doc = await Loan.findByIdAndUpdate(id, update, { new: true });
-      if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { new: true });
-      if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { new: true });
+      let doc = await Loan.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+      if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+      if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { returnDocument: 'after' });
       return doc;
     };
 
@@ -228,9 +228,9 @@ export const clearPaymentHistory = async (req: Request, res: Response) => {
     const { id } = req.params;
     const update = { $set: { payments: [], savedP1: 0, savedP2: 0 } };
 
-    let doc = await Loan.findByIdAndUpdate(id, update, { new: true });
-    if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { new: true });
-    if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { new: true });
+    let doc = await Loan.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+    if (!doc) doc = await Saving.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+    if (!doc) doc = await Goal.findByIdAndUpdate(id, update, { returnDocument: 'after' });
 
     if (!doc) return res.status(404).json({ error: "Meta/Empréstimo não encontrado" });
     res.json(doc);

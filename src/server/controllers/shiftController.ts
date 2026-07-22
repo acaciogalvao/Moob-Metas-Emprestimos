@@ -119,7 +119,7 @@ export const upsertShift = async (req: Request, res: Response) => {
     const updatedShift = await ShiftModel.findOneAndUpdate(
       { id: cleanShift.id } as any,
       cleanShift,
-      { new: true, upsert: true } as any
+      { returnDocument: 'after', upsert: true } as any
     );
     res.json(updatedShift);
   } catch (err: any) {
@@ -152,7 +152,7 @@ export const syncShifts = async (req: Request, res: Response) => {
         await ShiftModel.findOneAndUpdate(
           { id: cleanShift.id } as any,
           cleanShift,
-          { upsert: true, new: true } as any
+          { upsert: true, returnDocument: 'after' } as any
         );
         synced++;
       } catch (err: any) {
