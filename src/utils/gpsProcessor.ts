@@ -196,8 +196,12 @@ export function processGpsPoint(
       // Pico impossível — mantém valor anterior
       velSuave = prev.velSuave;
     } else if (nativeSpeedMs! < NATIVE_ZERO_SNAP_MS) {
-      // Snap-to-zero imediato: parado é parado
-      velSuave = 0;
+      // EMA em direção a zero — NÃO faz snap imediato.
+      // Uma única leitura zero espúria (comum em chips GPS baratos) não deve
+      // piscar 0 no velocímetro e voltar ao valor real no frame seguinte.
+      // O limitador de aceleração física garante queda realista ao freiar de
+      // verdade; ZERO_CONFIRM_COUNT confirma a parada após 3 leituras seguidas.
+      velSuave = (1 - ALPHA_NATIVE) * prev.velSuave; // decai ~20% por leitura
     } else {
       // EMA leve (α=0.80) — responde rápido sem tremer
       velSuave = ALPHA_NATIVE * nativeKmh + (1 - ALPHA_NATIVE) * prev.velSuave;
@@ -209,10 +213,12 @@ export function processGpsPoint(
     if (haversineKmh > MAX_SPEED_KMH) {
       velSuave = prev.velSuave;
     } else if (haversineKmh < HAVERSINE_ZERO_SNAP_KMH) {
-      // Snap-to-zero: menos ruidoso que EMA perto de zero
-      velSuave = 0;
+      // Mesmo tratamento: EMA em direção a zero, não snap imediato.
+      // Haversine é ruidoso e leituras abaixo de 2 km/h são comuns em trânsito
+      // lento — snap imediato causaria piscar constante perto de zero.
+      velSuave = (1 - ALPHA_HAVERSINE) * prev.velSuave; // decai ~35% por leitura
     } else {
-      // EMA moderado (α=0.65) — mais rápido que antes (era 0.3), ainda filtra ruído
+      // EMA moderado (α=0.65)
       velSuave = ALPHA_HAVERSINE * haversineKmh + (1 - ALPHA_HAVERSINE) * prev.velSuave;
     }
   }

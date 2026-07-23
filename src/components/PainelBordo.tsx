@@ -161,7 +161,7 @@ export function PainelBordo({
         lastCoordRef.current = { lat: latitude, lng: longitude, time: now };
       },
       () => setGpsSignal('SEM_SINAL'),
-      { enableHighAccuracy: true, timeout: 2500, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }, []);
 

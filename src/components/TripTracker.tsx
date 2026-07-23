@@ -321,20 +321,29 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
           else if (accuracy <= 35) setGpsSignalStrength('BOM');
           else                     setGpsSignalStrength('FRACO');
 
-          // ── Acumula distância via Haversine (filtrado por precisão) ──────────
+          // ── Acumula distância via Haversine (filtrado por precisão + velocidade) ─
           if (lastGpsCoordsRef.current) {
-            const prev = lastGpsCoordsRef.current;
+            const lastCoord = lastGpsCoordsRef.current;
             const R_earth = 6371e3;
-            const phi1 = (prev.lat * Math.PI) / 180;
+            const phi1 = (lastCoord.lat * Math.PI) / 180;
             const phi2 = (latitude  * Math.PI) / 180;
-            const dPhi = ((latitude  - prev.lat) * Math.PI) / 180;
-            const dLam = ((longitude - prev.lng) * Math.PI) / 180;
+            const dPhi = ((latitude  - lastCoord.lat) * Math.PI) / 180;
+            const dLam = ((longitude - lastCoord.lng) * Math.PI) / 180;
             const a =
               Math.sin(dPhi / 2) ** 2 +
               Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
             const distM = R_earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            if (accuracy <= 45 && distM > 1.2 && distM < 500) {
-              setTripDistanceKm(prev => prev + distM / 1000);
+
+            // Gate de velocidade: só acumula km se o veículo está em movimento.
+            // Evita somar ruído de posição GPS quando parado (mesmo filtro do gpsProcessor).
+            const deltaSec = Math.max(0.1, (now - lastCoord.time) / 1000);
+            const haversineSpeedMs = distM / deltaSec;
+            const nativeOk  = speed !== null && speed !== undefined && speed >= 0.5; // ≥ 1.8 km/h
+            const haversineOk = haversineSpeedMs >= (2 / 3.6);                      // ≥ 2 km/h
+            const isMoving  = nativeOk || haversineOk;
+
+            if (accuracy <= 45 && distM > 1.2 && distM < 500 && isMoving) {
+              setTripDistanceKm(d => d + distM / 1000);
             }
           }
 
@@ -354,12 +363,16 @@ export function TripTracker({ activeShift, onAddTransaction, vehicleType = 'CAR'
           if (canvas) drawSpeedometerCanvas(canvas, finalSpeed);
         },
         (err) => {
-          console.warn('Trip Tracker Geolocation Error:', err);
-          setGpsSignalStrength('SEM_SINAL');
+          console.warn('Trip Tracker Geolocation Error:', err.code, err.message);
+          // Código 3 = TIMEOUT — ignora; GPS ainda está tentando re-adquirir sinal.
+          // Só marca SEM_SINAL em erros reais (permissão negada ou posição indisponível).
+          if (err.code !== 3) {
+            setGpsSignalStrength('SEM_SINAL');
+          }
         },
         { 
           enableHighAccuracy: true, 
-          timeout: 2000, // High-frequency 1-2 seconds positioning updates (equivalent to FusedLocationProviderClient/CLLocationManager)
+          timeout: 10000, // 10s — tempo suficiente para re-aquisição após túneis/prédios
           maximumAge: 0 
         }
       );
