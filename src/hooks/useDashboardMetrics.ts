@@ -40,7 +40,10 @@ export function useDashboardMetrics({
     [activeShift, activeTab, allFilteredTransactions]
   );
 
-  const faturamentoPosDespesas = financialTotals.saldoLiquido;
+  // Indicador de produção do motorista:
+  // oferta da plataforma + extras registrados - despesas.
+  // Não usa o saldo físico/app, que é uma conferência de caixa diferente.
+  const faturamentoPosDespesas = financialTotals.faturamentoPosDespesas;
 
   const monthlyGoalMath = useMemo(
     () => computeMonthlyGoalMath(activeShift, excludeSundays, faturamentoPosDespesas),

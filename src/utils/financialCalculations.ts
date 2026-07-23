@@ -287,23 +287,40 @@ export function computeFinancialTotals(
 
   const saldosPlataformas = uberBalance + ninetyNineBalance;
 
-  // "Lucro Extra" (card do dashboard): quanto o motorista digitou na calculadora
-  // acima do valor que o app ofertou pela corrida — em TODAS as formas de
-  // pagamento (Direto no App, Pix ou Dinheiro), não só "Direto no App".
-  // Importante: isso é só uma métrica informativa, separada do extraChargedValue
-  // usado em getTransactionFaturamentoReal/cashIn/pixIn (que só existe para
-  // corridas "Direto no App", pois ali o valor ofertado e o extra realmente saem
-  // por vias diferentes). Aqui recalcula sempre a partir de keypadValue/appOfferValue/
-  // passengerAppValue, então funciona tanto para corridas novas quanto antigas.
-  const getRideExtraDisplay = (t: Transaction) =>
-    calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue);
-  const valoresExtrasUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getRideExtraDisplay(t), 0);
-  const valoresExtras99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getRideExtraDisplay(t), 0);
-  // Corridas particulares não têm "oferta do app" (são combinadas direto com o passageiro),
-  // então calculateExtraValue naturalmente retorna 0 quando não há appOfferValue — mas soma
-  // aqui do mesmo jeito para o caso de existir esse dado no futuro.
-  const valoresExtrasParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + getRideExtraDisplay(t), 0);
-  const totalValoresExtras = valoresExtrasUber + valoresExtras99 + valoresExtrasParticular;
+  // Indicadores de plataforma:
+  // - oferta: valor que Uber/99 informou que pagaria ao motorista;
+  // - extra: valor cobrado por fora e registrado como extra da corrida;
+  // - pagamento da plataforma: oferta + extra, separado por app.
+  //
+  // Para registros antigos, o extra pode não estar salvo. Só usamos a fórmula
+  // legada como fallback em corridas "Direto no App"; em corridas Pix/Dinheiro
+  // o valor digitado já é o total recebido do passageiro, não um extra.
+  const getPlatformOffer = (t: Transaction): number =>
+    t.appOfferValue !== undefined
+      ? t.appOfferValue
+      : Math.max(0, t.value - (t.paymentMethod === 'APP' ? (t.extraChargedValue || 0) : 0));
+  const getPlatformExtra = (t: Transaction): number => {
+    if (t.extraChargedValue !== undefined) return Math.max(0, t.extraChargedValue);
+    return t.paymentMethod === 'APP'
+      ? calculateExtraValue(t.keypadValue, t.appOfferValue, t.passengerAppValue)
+      : 0;
+  };
+  const appRides = rides.filter(t => t.platform === 'UBER' || t.platform === '99');
+  const uberRides = appRides.filter(t => t.platform === 'UBER');
+  const ninetyNineRides = appRides.filter(t => t.platform === '99');
+
+  const valoresOfertadosUber = uberRides.reduce((s, t) => s + getPlatformOffer(t), 0);
+  const valoresOfertados99 = ninetyNineRides.reduce((s, t) => s + getPlatformOffer(t), 0);
+  const totalValoresOfertados = valoresOfertadosUber + valoresOfertados99;
+
+  const valoresExtrasUber = uberRides.reduce((s, t) => s + getPlatformExtra(t), 0);
+  const valoresExtras99 = ninetyNineRides.reduce((s, t) => s + getPlatformExtra(t), 0);
+  const valoresExtrasParticular = 0;
+  const totalValoresExtras = valoresExtrasUber + valoresExtras99;
+
+  const ganhosPlataformaUber = valoresOfertadosUber + valoresExtrasUber;
+  const ganhosPlataforma99 = valoresOfertados99 + valoresExtras99;
+  const ganhosPlataformas = ganhosPlataformaUber + ganhosPlataforma99;
 
   const expectedGeral = rawIn - rawOut;
 
@@ -322,16 +339,20 @@ export function computeFinancialTotals(
   const totalTips = totalIndependentTips + totalRideTips;
   const tipsCount = independentTipsCount + rideTipsCount;
 
-  // Faturamento Bruto Real = todo dinheiro ofertado pela app (UBER/99) + corridas particulares
-  // (sempre recebidas em Pix ou Dinheiro) + gorjetas + cancelamentos.
-  // Conta sempre, independente da forma de pagamento da corrida.
-  const totalValoresOfertados = rides.reduce((s, t) => s + getTransactionFaturamentoReal(t), 0) + totalCancels + totalIndependentTips;
+  // Faturamento bruto de plataformas = soma do valor que o passageiro pagou
+  // diretamente à Uber/99. Não inclui o valor ofertado ao motorista, extras,
+  // gorjetas, cancelamentos, campanhas ou corridas particulares.
+  const getPassengerAppPaid = (t: Transaction): number =>
+    t.passengerAppValue !== undefined
+      ? t.passengerAppValue
+      : t.passengerValue !== undefined
+        ? t.passengerValue
+        : t.value;
+  const faturamentoBrutoUber = uberRides.reduce((s, t) => s + getPassengerAppPaid(t), 0);
+  const faturamentoBruto99 = ninetyNineRides.reduce((s, t) => s + getPassengerAppPaid(t), 0);
+  const faturamentoBrutoTotal = faturamentoBrutoUber + faturamentoBruto99;
 
-  const valoresOfertadosUber = rides.filter(t => t.platform === 'UBER').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
-
-  const valoresOfertados99 = rides.filter(t => t.platform === '99').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
-
-  const valoresOfertadosParticular = rides.filter(t => t.platform === 'PARTICULAR').reduce((s, t) => s + getTransactionFaturamentoReal(t), 0);
+  const valoresOfertadosParticular = 0;
 
   const particularRidesCount = rides.filter(t => t.platform === 'PARTICULAR').length;
 
@@ -343,26 +364,19 @@ export function computeFinancialTotals(
   // NÃO se subtrai rawOut novamente — fazer isso dupla-contaria as despesas pagas em Pix/Dinheiro.
   const saldoLiquido = expectedPocketCash + expectedPixBalance + saldosPlataformas;
 
-  // Faturamento Bruto = soma do que cada passageiro pagou em cada corrida.
-  // Uber/99: passengerAppValue (valor bruto que o passageiro pagou ao app antes da taxa).
-  //          Fallback: passengerValue → tx.value (corridas sem o campo preenchido).
-  // PARTICULAR: tx.value (combinado direto com o passageiro, sem plataforma).
-  // NÃO inclui: extraChargedValue (cobrado por fora), gorjetas, campanhas, saques ou
-  // quaisquer outras entradas — apenas o valor da corrida pago pelo passageiro.
-  const faturamentoBrutoTotal = rides.reduce((s, t) => {
-    const paidByPassenger =
-      t.passengerAppValue !== undefined ? t.passengerAppValue
-      : t.passengerValue  !== undefined ? t.passengerValue
-      : t.value;
-    return s + paidByPassenger;
-  }, 0);
+  // Indicador solicitado pelo motorista:
+  // oferta Uber/99 + extras registrados nessas plataformas − despesas.
+  const faturamentoPosDespesas = ganhosPlataformas - rawOut;
 
   return {
     faturamentoBruto: faturamentoBrutoTotal,
+    faturamentoBrutoUber,
+    faturamentoBruto99,
     faturamentoInflows: rawIn,
     passageiroMaisExtra,
     despesasTotais: rawOut,
     saldoLiquido: saldoLiquido,
+    faturamentoPosDespesas,
     avgRide: rides.length > 0 ? rawIn / rides.length : 0,
     ridesCount: rides.length,
     expensesCount: expenses.length,
@@ -380,6 +394,9 @@ export function computeFinancialTotals(
     valoresOfertadosUber,
     valoresOfertados99,
     valoresOfertadosParticular,
+    ganhosPlataformaUber,
+    ganhosPlataforma99,
+    ganhosPlataformas,
     totalValoresExtras,
     valoresExtrasUber,
     valoresExtras99,

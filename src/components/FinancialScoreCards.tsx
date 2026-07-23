@@ -83,7 +83,6 @@ export function FinancialScoreCards({
   onToggleExcludeSundays,
 }: FinancialScoreCardsProps) {
   const netPositive = faturamentoPosDespesas >= 0;
-  const appBalance = financialTotals.uberBalance + financialTotals.ninetyNineBalance;
 
   return (
     <div className="grid grid-cols-2 gap-2" id="dashboard-general-scores">
@@ -92,28 +91,29 @@ export function FinancialScoreCards({
       <ScoreCard accent="#34d399" glowClass="glow-emerald">
         <CardLabel color="#34d399">Faturamento Bruto</CardLabel>
         <CardValue color="#34d399" glowClass="num-glow-emerald">
-          {formatBRL(financialTotals.totalValoresOfertados)}
+          {formatBRL(financialTotals.faturamentoBruto)}
         </CardValue>
         <Divider />
         <div className="flex flex-col gap-1">
           <Row
             label={<span className="flex items-center gap-1"><Dot color="#e2e8f0" />Uber</span>}
-            value={`${financialTotals.uberRidesCount} corr.`}
+            value={`R$ ${formatDecimalBRL(financialTotals.faturamentoBrutoUber)}`}
             valueColor="#e2e8f0"
           />
           <Row
             label={<span className="flex items-center gap-1"><Dot color="#fbbf24" />99 App</span>}
-            value={`${financialTotals.ninetyNineRidesCount} corr.`}
+            value={`R$ ${formatDecimalBRL(financialTotals.faturamentoBruto99)}`}
             valueColor="#fbbf24"
           />
           {financialTotals.particularRidesCount > 0 && (
             <Row
-              label={<span className="flex items-center gap-1"><Dot color="#34d399" />Particular</span>}
-              value={`${financialTotals.particularRidesCount} corr.`}
+              label={<span className="flex items-center gap-1"><Dot color="#34d399" />Particular*</span>}
+              value="não incluído"
               valueColor="#34d399"
             />
           )}
         </div>
+        <div className="text-[9px] text-slate-500 font-sans mt-2">Valor pago pelo passageiro à plataforma</div>
       </ScoreCard>
 
       {/* 2. Faturamento Pós Despesas */}
@@ -124,35 +124,34 @@ export function FinancialScoreCards({
         </CardValue>
         <Divider />
         <div className="flex flex-col gap-1">
-          <Row label="Bruto" value={`R$ ${formatDecimalBRL(financialTotals.totalValoresOfertados)}`} valueColor="#34d399" />
+          <Row label="Ofertas + extras" value={`R$ ${formatDecimalBRL(financialTotals.ganhosPlataformas)}`} valueColor="#34d399" />
           <Row label="Despesas" value={`-R$ ${formatDecimalBRL(financialTotals.despesasTotais)}`} valueColor="#fb7185" />
-          <Row
-            label="Plataformas"
-            value={`${financialTotals.saldosPlataformas < 0 ? '-' : ''}R$ ${formatDecimalBRL(Math.abs(financialTotals.saldosPlataformas))}`}
-            valueColor={financialTotals.saldosPlataformas < 0 ? '#fb7185' : '#94a3b8'}
-          />
+          <Row label="Fórmula" value="app + extras - despesas" valueColor="#94a3b8" />
         </div>
+        <div className="text-[9px] text-slate-500 font-sans mt-2">O que a plataforma ofertou + extras − despesas</div>
       </ScoreCard>
 
-      {/* 3. Saldos dos Apps */}
+      {/* 3. Valores pagos pelos apps */}
       <ScoreCard accent="#a78bfa" glowClass="glow-violet">
-        <CardLabel color="#a78bfa">Saldos dos Apps</CardLabel>
-        <CardValue color={appBalance >= 0 ? '#a78bfa' : '#fb7185'} glowClass={appBalance >= 0 ? 'num-glow-violet' : 'num-glow-rose'}>
-          {formatBRL(appBalance)}
+        <CardLabel color="#a78bfa">Pago pelos Apps</CardLabel>
+        <CardValue color="#a78bfa" glowClass="num-glow-violet">
+          {formatBRL(financialTotals.totalValoresOfertados)}
         </CardValue>
         <Divider />
         <div className="flex flex-col gap-1">
           <Row
             label={<span className="flex items-center gap-1"><Dot color="#e2e8f0" />Uber</span>}
-            value={`R$ ${formatDecimalBRL(financialTotals.uberBalance)}`}
-            valueColor={financialTotals.uberBalance >= 0 ? '#e2e8f0' : '#fb7185'}
+            value={`R$ ${formatDecimalBRL(financialTotals.valoresOfertadosUber)}`}
+            valueColor="#e2e8f0"
           />
           <Row
             label={<span className="flex items-center gap-1"><Dot color="#fbbf24" />99 App</span>}
-            value={`R$ ${formatDecimalBRL(financialTotals.ninetyNineBalance)}`}
-            valueColor={financialTotals.ninetyNineBalance >= 0 ? '#fbbf24' : '#fb7185'}
+            value={`R$ ${formatDecimalBRL(financialTotals.valoresOfertados99)}`}
+            valueColor="#fbbf24"
           />
+          <Row label="Total pago pelos apps" value={`R$ ${formatDecimalBRL(financialTotals.totalValoresOfertados)}`} valueColor="#c4b5fd" />
         </div>
+        <div className="text-[9px] text-slate-500 font-sans mt-2">Somente o valor ofertado/pago por Uber e 99</div>
       </ScoreCard>
 
       {/* 4. Lucro Extra */}
