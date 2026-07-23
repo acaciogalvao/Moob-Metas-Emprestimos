@@ -343,8 +343,29 @@ export function computeFinancialTotals(
   // NÃO se subtrai rawOut novamente — fazer isso dupla-contaria as despesas pagas em Pix/Dinheiro.
   const saldoLiquido = expectedPocketCash + expectedPixBalance + saldosPlataformas;
 
+  // Faturamento Bruto = tudo que o passageiro pagou à plataforma.
+  // Para corridas Uber/99: passengerAppValue (o que o passageiro pagou ao app)
+  //   + extraChargedValue (extra cobrado por fora, em Pix ou Dinheiro)
+  //   + tipValue (gorjeta embutida na corrida).
+  // Para corridas Particulares: tx.value (combinado direto com o passageiro).
+  // Mais: gorjetas independentes, cancelamentos, campanhas e demais entradas não-CAMBIO.
+  const faturamentoBrutoRides = rides.reduce((s, t) => {
+    const paidByPassenger =
+      t.passengerAppValue !== undefined ? t.passengerAppValue
+      : t.passengerValue  !== undefined ? t.passengerValue
+      : t.value; // fallback (PARTICULAR ou corrida sem campo preenchido)
+    const extra = t.extraChargedValue && t.extraChargedValue > 0 ? t.extraChargedValue : 0;
+    const tip   = t.tipValue           && t.tipValue > 0           ? t.tipValue           : 0;
+    return s + paidByPassenger + extra + tip;
+  }, 0);
+  const faturamentoBrutoNaoRides = allInTransactions
+    .filter(t => t.category !== 'CORRIDA' && t.category !== 'CAMBIO_PIX')
+    .reduce((s, t) => s + t.value, 0);
+  const faturamentoBrutoTotal =
+    faturamentoBrutoRides + faturamentoBrutoNaoRides + (activeShift?.ajusteSaldoAnterior || 0);
+
   return {
-    faturamentoBruto: rawIn + (activeShift?.ajusteSaldoAnterior || 0),
+    faturamentoBruto: faturamentoBrutoTotal,
     faturamentoInflows: rawIn,
     passageiroMaisExtra,
     despesasTotais: rawOut,
