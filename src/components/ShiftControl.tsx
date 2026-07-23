@@ -2877,7 +2877,8 @@ export function ShiftControl({
       {/* FECHAMENTO DE CAIXA MODAL DIALOG STYLE */}
       <AnimatePresence>
         {isClosingOpen && (
-          <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xs">
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -4007,6 +4008,7 @@ export function ShiftControl({
                 </div>
               </div>
             </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>
