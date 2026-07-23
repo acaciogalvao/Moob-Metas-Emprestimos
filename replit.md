@@ -82,3 +82,4 @@ All backend routes are mounted under `/moob-api/`:
 - `/moob-api/config/db-uri` — dynamic DB URI configuration
 
 ## User preferences
+- Responder sempre em português.
