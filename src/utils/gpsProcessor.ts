@@ -69,8 +69,10 @@ const NATIVE_ZERO_SNAP_MS = 0.5;   // ~1.8 km/h
 /** Velocidade Haversine abaixo deste valor (km/h) → snap imediato para zero */
 const HAVERSINE_ZERO_SNAP_KMH = 2;
 
-/** Precisão máxima aceita (metros) — acima disso descarta o ponto */
-const MAX_ACCURACY_M = 65;
+/** Precisão máxima aceita (metros) — acima disso descarta o ponto.
+ *  120m cobre GPS urbano típico no Brasil (edifícios, viadutos, sombra de satélite).
+ *  O filtro serve apenas para rejeitar leituras obviamente ruins de rede/Wi-Fi. */
+const MAX_ACCURACY_M = 120;
 
 /** Limite físico de aceleração/frenagem (m/s²) — impede saltos impossíveis */
 const MAX_ACCEL_MS2 = 6;
@@ -151,13 +153,19 @@ export function processGpsPoint(
   // Distância Haversine — usada sempre para o odômetro
   const distM = haversineM(last.latitude, last.longitude, point.latitude, point.longitude);
 
-  // Descarta pontos com sinal ruim (accuracy > 65m) — ruído demais
+  // Descarta pontos com sinal muito ruim (accuracy > MAX_ACCURACY_M)
+  // mas ATUALIZA o timestamp de lastPoint para que deltaTSec seja sempre correto
+  // quando o próximo ponto válido chegar. Sem isso, uma sequência de pontos ruins
+  // congela o timestamp e distorce o cálculo de velocidade do ponto seguinte.
   if (point.accuracy !== undefined && point.accuracy > MAX_ACCURACY_M) {
+    const updatedLastPoint = prev.lastPoint
+      ? { ...prev.lastPoint, timestamp: point.timestamp }
+      : null;
     return {
       speedKmh: Math.round(prev.velSuave),
       totalKm: prev.totalKm,
       tripKm: prev.tripKm,
-      state: { ...prev, history },
+      state: { ...prev, history, lastPoint: updatedLastPoint },
       discarded: true,
       usingNativeSpeed: prev.usingNativeSpeed,
     };
@@ -243,17 +251,34 @@ export function processGpsPoint(
   if (zeroCount >= ZERO_CONFIRM_COUNT) velSuave = 0;
 
   // ── Odômetro: acumula apenas quando em movimento real ─────────────────
-  // Gate de velocidade usa a mesma fonte e limiar do velocímetro:
-  //  - chip GPS (Doppler): nativeSpeed >= 0.5 m/s (~1.8 km/h)
-  //  - Haversine (fallback): velocidade calculada >= 2 km/h
-  // Isso evita acumular ruído de posição GPS enquanto o veículo está parado
-  // (semáforos, esperas, estacionamento), que é a principal causa de
-  // diferença entre o hodômetro GPS e o odômetro real do veículo.
+  // FONTE PRIMÁRIA: velocidade Doppler do chip × tempo (nativeSpeed × deltaTSec).
+  //   A velocidade Doppler do chip GPS é muito mais precisa que a distância
+  //   calculada entre dois pontos (Haversine), pois não depende da acurácia
+  //   posicional — o chip mede velocidade diretamente pela frequência do sinal.
+  //   Integrar Doppler × tempo elimina o ruído de posição em curtos intervalos.
+  //
+  // FALLBACK (sem nativeSpeed): Haversine entre posições.
+  //   Requer velocidade calculada >= 2 km/h para evitar drift em paradas.
+  //
+  // Gate de parada (igual ao do velocímetro) evita acumular ruído estático:
+  //  - chip: nativeSpeedMs >= 0.5 m/s (~1.8 km/h)
+  //  - calculado: haversineKmhRaw >= 2 km/h
   const haversineKmhRaw = (distM / 1000) / deltaTHours;
   const odoGateOk = hasNativeSpeed
     ? nativeSpeedMs! >= NATIVE_ZERO_SNAP_MS           // chip Doppler: ≥ 0.5 m/s
     : haversineKmhRaw >= HAVERSINE_ZERO_SNAP_KMH;     // calculado: ≥ 2 km/h
-  const distKm  = odoGateOk ? distM / 1000 : 0;
+
+  let distKm: number;
+  if (!odoGateOk) {
+    distKm = 0;
+  } else if (hasNativeSpeed) {
+    // Velocidade Doppler × tempo: mais precisa que Haversine em intervalos curtos
+    distKm = (nativeSpeedMs! * deltaTSec) / 1000;
+  } else {
+    // Fallback: distância entre posições (Haversine)
+    distKm = distM / 1000;
+  }
+
   const totalKm = prev.totalKm + distKm;
   const tripKm  = prev.tripKm  + distKm;
 
