@@ -5,6 +5,7 @@
 #   moob            -> modo "produção sem build" (padrão: estável, sem precisar buildar)
 #   moob dev        -> modo dev (HMR ativo, para quando você for editar código)
 #   moob build      -> modo produção com build (roda "npm run build" e depois serve dist/)
+#   moob sync       -> sincroniza com origin/main e descarta diferenças locais
 #
 # Instalação (uma vez só), dentro do Termux:
 #   cd ~/desenvolvimento/Moob-Metas-Emprestimos
@@ -27,11 +28,6 @@ fi
 
 cd "$PROJECT_DIR"
 
-if [ ! -d "node_modules" ]; then
-  echo "📦 Instalando dependências (primeira vez)..."
-  npm install
-fi
-
 SERVER_PID=""
 cleanup() {
   if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -42,6 +38,18 @@ cleanup() {
 trap cleanup INT TERM
 
 case "$MODE" in
+  sync)
+    echo "🔄 Sincronizando com origin/main..."
+    echo "⚠️  Alterações locais e commits que não estão no GitHub serão descartados."
+    git fetch origin main
+    git reset --hard origin/main
+    git clean -fd
+    echo "📦 Atualizando dependências..."
+    npm install
+    echo "✅ Termux sincronizado com origin/main:"
+    git log -1 --oneline
+    exit 0
+    ;;
   dev)
     echo "🚀 Iniciando MoobFinance em modo DEV (HMR ativo) na porta $PORT..."
     PORT="$PORT" npm run dev &
@@ -60,6 +68,11 @@ case "$MODE" in
     SERVER_PID=$!
     ;;
 esac
+
+if [ ! -d "node_modules" ]; then
+  echo "📦 Instalando dependências (primeira vez)..."
+  npm install
+fi
 
 echo "⏳ Aguardando o servidor responder..."
 for i in $(seq 1 30); do

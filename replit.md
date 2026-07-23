@@ -29,11 +29,37 @@ ln -sf "$PWD/scripts/moob" "$PREFIX/bin/moob"
 moob            # modo produção sem build (padrão — estável, sem precisar buildar)
 moob dev        # modo dev (HMR ativo, para editar código)
 moob build      # modo produção com build (roda "npm run build" e depois serve dist/)
+moob sync       # deixa o Termux igual à origin/main do GitHub
 ```
 O script entra na pasta do projeto, instala dependências se faltar `node_modules`, inicia o servidor na
 porta 5000 e abre `http://localhost:5000/` automaticamente via `termux-open-url` (requer o app Termux:API
 + `pkg install termux-api`; sem isso, ele só imprime o endereço para abrir manualmente). Ctrl+C encerra o
 servidor.
+
+### Regra de sincronização do Termux
+
+O GitHub (`origin/main`) é a fonte de verdade do projeto. Tudo que for alterado no Replit e enviado
+com `git push` deve ser usado no Termux sem preservar diferenças locais.
+
+Para atualizar o Termux de forma exata, execute:
+```
+moob sync
+```
+
+Esse comando faz `fetch` da `origin/main`, move a branch local diretamente para o mesmo commit remoto
+e remove arquivos não rastreados. Ele **descarta alterações locais e commits que existam apenas no
+Termux**. Arquivos ignorados, como `node_modules`, não são removidos.
+
+Depois, para uso diário:
+```
+moob
+```
+
+Se estiver usando o modo com build:
+```
+moob sync
+moob build
+```
 
 ## Required secrets
 | Secret | Purpose | Status |
