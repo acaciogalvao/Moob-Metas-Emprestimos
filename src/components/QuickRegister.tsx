@@ -3166,7 +3166,7 @@ export function QuickRegister({
             <div className="absolute top-0 right-0 w-20 h-20 bg-slate-400/5 blur-xl rounded-full" />
             
             <div className="flex justify-between items-center text-[12.5px] font-bold text-slate-500 uppercase font-mono mb-1">
-              <span>{txType === 'IN' ? (inType === 'CANCELAMENTO' ? 'TAXA DE CANCELAMENTO' : 'FATURAMENTO DA CORRIDA') : 'DESPESA TOTAL'}</span>
+              <span>{txType === 'IN' ? (inType === 'CANCELAMENTO' ? 'TAXA DE CANCELAMENTO' : (paymentMethod === 'APP' && (platform === 'UBER' || platform === '99') ? 'VALOR EXTRA COBRADO' : 'FATURAMENTO DA CORRIDA')) : 'DESPESA TOTAL'}</span>
               <span className={`px-2 py-0.2 rounded text-[12px] ${
                 txType === 'IN' 
                   ? (platform === '99' ? 'bg-amber-500/10 text-amber-500' : 'bg-white/10 text-white border border-slate-800')
@@ -3195,7 +3195,9 @@ export function QuickRegister({
             {txType === 'IN' && inType === 'CORRIDA' && (platform === 'UBER' || platform === '99') && (
               <span className="text-sm text-amber-500 font-bold block leading-none text-right mt-1 font-mono">
                 {paymentMethod === 'APP' 
-                  ? "Faturamento que entra no saldo do app (Valor líquido da chamada)" 
+                  ? cleanValue > 0
+                    ? `💰 Extra cobrado do passageiro (${extraPaymentMethod === 'DINHEIRO' ? 'Dinheiro' : 'Pix'}) — entra no Lucro Extra`
+                    : "Digite aqui o valor extra cobrado do passageiro (Pix/Dinheiro) — opcional"
                   : "Valor cobrado/recebido de fato do passageiro (Entrada em Pix/Dinheiro/Cartão)"}
               </span>
             )}
