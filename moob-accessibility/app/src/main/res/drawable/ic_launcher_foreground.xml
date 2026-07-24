@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Letter M for Moob -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,72 L28,36 L42,36 L54,58 L66,36 L80,36 L80,72 L68,72 L68,54 L57,72 L51,72 L40,54 L40,72 Z" />
+</vector>
