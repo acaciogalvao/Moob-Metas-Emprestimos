@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, Plus, Minus, Check, HelpCircle, Delete, Fuel, MessageSquare, MapPin, Calculator, Car, Bike, Clock } from 'lucide-react';
+import { Coins, Plus, Minus, Check, HelpCircle, Delete, Fuel, MessageSquare, MapPin, Calculator, Car, Bike, Clock, Zap, X, Navigation } from 'lucide-react';
+import { useRidePrefill } from '../hooks/useRidePrefill';
 import { PlatformType, TransactionType, PaymentMethod, Shift } from '../types';
 import { playBeep, playCashRegister, playErrorBeep } from '../utils/audio';
 import { parseBRLInput, maskBRL, maskKM, parseKMInput, maskOdometer, parseOdometerInput, formatOdometer, formatDecimalBRL, calculateExtraValue } from '../utils/format';
@@ -220,6 +221,42 @@ export function QuickRegister({
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [openingError, setOpeningError] = useState<string | null>(null);
+
+  // ── Pré-preenchimento via APK de acessibilidade (Uber/99) ─────────────────
+  const { prefill, consume: consumePrefill, dismiss: dismissPrefill } =
+    useRidePrefill(!!activeShift);
+
+  const applyPrefill = useCallback(() => {
+    if (!prefill) return;
+    setTxType('IN');
+    setPlatform(prefill.platform as PlatformType);
+    setInType('CORRIDA');
+    // KM da corrida (embarque → destino)
+    if (prefill.destination.distanceKm != null) {
+      setKm(prefill.destination.distanceKm.toFixed(1).replace('.', ','));
+    }
+    // Endereços no campo de descrição
+    const parts: string[] = [];
+    if (prefill.pickup.distanceKm != null)
+      parts.push(`Embarque ${prefill.pickup.distanceKm.toFixed(1).replace('.', ',')} km`);
+    if (prefill.pickup.etaMinutes != null)
+      parts.push(`(${prefill.pickup.etaMinutes} min)`);
+    parts.push(`📍 ${prefill.pickup.address}`);
+    parts.push(`🏁 ${prefill.destination.address}`);
+    if (prefill.destination.etaMinutes != null)
+      parts.push(`Tempo estimado: ${prefill.destination.etaMinutes} min`);
+    setDescription(parts.join(' · '));
+    // Valor ofertado pelo app (se disponível)
+    if (prefill.fareEstimate) {
+      const num = prefill.fareEstimate.replace(/[^\d,]/g, '').replace(',', '.');
+      const parsed = parseFloat(num);
+      if (!isNaN(parsed) && parsed > 0) {
+        setAppOfferInput(maskBRL(Math.round(parsed * 100).toString()));
+      }
+    }
+    consumePrefill();
+    playBeep();
+  }, [prefill, consumePrefill]);
 
   // Pre-shift configuration for Tank Capacity and Consumption (KM/L)
   const [openingConsumption, setOpeningConsumption] = useState<string>(() => {
@@ -2238,6 +2275,89 @@ export function QuickRegister({
       {/* 1. Scanned Item Screen and Settings (Left side) */}
       <div className="p-4 flex flex-col justify-between border-b border-slate-800">
         <div>
+          {/* Banner de pré-preenchimento do APK de acessibilidade */}
+          <AnimatePresence>
+            {prefill && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.2 }}
+                className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 overflow-hidden"
+              >
+                {/* Cabeçalho do banner */}
+                <div className="flex items-center justify-between px-3 py-2 border-b border-emerald-500/20">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span className="text-[12px] font-extrabold text-emerald-400 uppercase tracking-wider">
+                      Chamado {prefill.platform === 'UBER' ? 'Uber' : '99'} capturado
+                    </span>
+                    {prefill.rideType && (
+                      <span className="text-[11px] text-emerald-300/70 font-bold">· {prefill.rideType}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={dismissPrefill}
+                    className="text-slate-500 hover:text-slate-300 transition-colors p-0.5"
+                    aria-label="Dispensar"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Dados da corrida */}
+                <div className="px-3 py-2 space-y-1">
+                  {/* Embarque */}
+                  <div className="flex items-start gap-1.5">
+                    <Navigation className="w-3 h-3 text-sky-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-[11px] text-slate-400 font-bold">Embarque</span>
+                      {prefill.pickup.distanceKm != null && (
+                        <span className="text-[11px] text-sky-400 font-bold ml-1">
+                          {prefill.pickup.distanceKm.toFixed(1).replace('.', ',')} km
+                          {prefill.pickup.etaMinutes != null && ` · ${prefill.pickup.etaMinutes} min`}
+                        </span>
+                      )}
+                      <p className="text-[12px] text-white font-semibold truncate">{prefill.pickup.address}</p>
+                    </div>
+                  </div>
+                  {/* Destino */}
+                  <div className="flex items-start gap-1.5">
+                    <MapPin className="w-3 h-3 text-rose-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-[11px] text-slate-400 font-bold">Destino</span>
+                      {prefill.destination.distanceKm != null && (
+                        <span className="text-[11px] text-emerald-400 font-bold ml-1">
+                          {prefill.destination.distanceKm.toFixed(1).replace('.', ',')} km
+                          {prefill.destination.etaMinutes != null && ` · ${prefill.destination.etaMinutes} min`}
+                        </span>
+                      )}
+                      <p className="text-[12px] text-white font-semibold truncate">{prefill.destination.address}</p>
+                    </div>
+                  </div>
+                  {/* Valor estimado */}
+                  {prefill.fareEstimate && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-400 font-bold">Valor estimado:</span>
+                      <span className="text-[13px] text-amber-400 font-extrabold">{prefill.fareEstimate}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botão de aplicar */}
+                <div className="px-3 pb-2.5">
+                  <button
+                    onClick={applyPrefill}
+                    className="w-full py-2 rounded-lg bg-emerald-500 text-slate-950 text-[13px] font-extrabold uppercase tracking-wide hover:bg-emerald-400 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Preencher formulário com esses dados
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Header Mode toggle */}
           <div className="flex bg-slate-950 p-1 rounded-lg mb-4 border border-slate-800 gap-1">
             <button

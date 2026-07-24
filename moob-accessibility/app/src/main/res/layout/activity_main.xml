@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#0F172A"
+    android:gravity="center_horizontal">
+
+    <!-- Logo / Ícone -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🚗"
+        android:textSize="48sp"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Moob Acessibilidade"
+        android:textColor="#F8FAFC"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Captura chamados do Uber e 99 para o MoobFinance"
+        android:textColor="#94A3B8"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:layout_marginBottom="32dp" />
+
+    <!-- Status do serviço -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Verificando serviço…"
+        android:textColor="#94A3B8"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="#1E293B"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Botão para abrir configurações de acessibilidade -->
+    <Button
+        android:id="@+id/btnOpenSettings"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="@string/btn_open_settings"
+        android:textColor="#0F172A"
+        android:backgroundTint="#F59E0B"
+        android:layout_marginBottom="24dp" />
+
+    <!-- URL do MoobFinance -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/moob_url_label"
+        android:textColor="#64748B"
+        android:textSize="12sp"
+        android:textAllCaps="true"
+        android:letterSpacing="0.08"
+        android:layout_marginBottom="6dp" />
+
+    <EditText
+        android:id="@+id/etMoobUrl"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="@string/moob_url_hint"
+        android:textColor="#F8FAFC"
+        android:textColorHint="#475569"
+        android:background="#1E293B"
+        android:padding="12dp"
+        android:inputType="textUri"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btnSave"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:text="@string/btn_save"
+        android:textColor="#F8FAFC"
+        android:backgroundTint="#1E293B"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Log de último chamado -->
+    <TextView
+        android:id="@+id/tvLastRide"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Nenhum chamado capturado ainda."
+        android:textColor="#475569"
+        android:textSize="12sp"
+        android:padding="12dp"
+        android:background="#1E293B" />
+
+</LinearLayout>

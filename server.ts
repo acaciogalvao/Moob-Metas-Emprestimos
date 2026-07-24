@@ -5,6 +5,7 @@ import connectDB from "./src/server/config/database.ts";
 import goalRoutes from "./src/server/routes/goalRoutes.ts";
 import paymentRoutes from "./src/server/routes/paymentRoutes.ts";
 import shiftRoutes from "./src/server/routes/shiftRoutes.ts";
+import ridePrefillRoutes from "./src/server/routes/ridePrefillRoutes.ts";
 import { migrateGoalsCollection, migrateLegacyMetaToPrincipal } from "./src/server/lib/migrate.ts";
 
 const app = express();
@@ -20,6 +21,9 @@ app.use("/moob-api/goal", goalRoutes);
 
 // Rotas de turnos/caixa do motorista
 app.use("/moob-api/shifts", shiftRoutes);
+
+// Rotas de pré-preenchimento via APK de acessibilidade (Uber/99)
+app.use("/moob-api/ride-prefill", ridePrefillRoutes);
 
 // Rotas de pagamento
 app.use("/moob-api", paymentRoutes);

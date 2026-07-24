@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Moob Acessibilidade</string>
+    <string name="accessibility_service_description">Lê chamados de corrida do Uber e 99 e envia os dados automaticamente para o MoobFinance.</string>
+    <string name="service_status_active">Serviço ativo — monitorando Uber e 99</string>
+    <string name="service_status_inactive">Serviço inativo</string>
+    <string name="btn_open_settings">Abrir configurações de acessibilidade</string>
+    <string name="moob_url_label">URL do MoobFinance</string>
+    <string name="moob_url_hint">http://localhost:5000</string>
+    <string name="btn_save">Salvar</string>
+</resources>
